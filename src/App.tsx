@@ -17,8 +17,18 @@ function App() {
     const checkAuth = async () => {
       // Check if this is a callback URL with code parameter
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('code')) {
-        const success = await authService.handleCallback();
+      const code = urlParams.get('code');
+
+      if (code) {
+        console.log('Processing OAuth callback with code:', code.substring(0, 20) + '...');
+
+        // Clean URL immediately to prevent reuse
+        const currentPath = window.location.pathname;
+        window.history.replaceState({}, document.title, currentPath);
+
+        // Pass the extracted code to handleCallback
+        const success = await authService.handleCallbackWithCode(code);
+        console.log('Callback result:', success);
         setIsAuthenticated(success);
       } else {
         setIsAuthenticated(authService.isAuthenticated());

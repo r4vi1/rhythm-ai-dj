@@ -99,14 +99,24 @@ export const spotifyAuthService = {
     handleCallback: async (): Promise<boolean> => {
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
+        return spotifyAuthService.handleCallbackWithCode(code);
+    },
+
+    handleCallbackWithCode: async (code: string | null): Promise<boolean> => {
+        console.log('handleCallbackWithCode - code present:', !!code);
 
         if (!code) {
+            console.log('No code provided');
             return false;
         }
 
         const codeVerifier = localStorage.getItem('spotify_code_verifier');
+        console.log('handleCallbackWithCode - code_verifier present:', !!codeVerifier);
+        console.log('handleCallbackWithCode - code_verifier value:', codeVerifier?.substring(0, 20) + '...');
+
         if (!codeVerifier) {
-            console.error('No code verifier found');
+            console.error('No code verifier found in localStorage');
+            console.log('All localStorage keys:', Object.keys(localStorage));
             return false;
         }
 
@@ -127,7 +137,16 @@ export const spotifyAuthService = {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to exchange code for token');
+                const errorText = await response.text();
+                console.error('Token exchange failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: errorText,
+                    client_id: SPOTIFY_CLIENT_ID,
+                    redirect_uri: REDIRECT_URI,
+                    code_verifier_length: codeVerifier.length
+                });
+                throw new Error(`Failed to exchange code for token: ${response.status} - ${errorText}`);
             }
 
             const data: SpotifyTokenResponse = await response.json();
@@ -144,8 +163,7 @@ export const spotifyAuthService = {
             localStorage.setItem('spotify_token_expiration', spotifyAuthService.tokenExpiration.toString());
             localStorage.removeItem('spotify_code_verifier');
 
-            // Clean URL
-            window.history.replaceState({}, document.title, '/');
+            console.log('✅ Token exchange successful');
             return true;
         } catch (error) {
             console.error('Error handling callback:', error);
@@ -224,6 +242,7 @@ export const authService = {
     init: () => { },
     login: () => spotifyAuthService.login(),
     handleCallback: () => spotifyAuthService.handleCallback(),
+    handleCallbackWithCode: (code: string | null) => spotifyAuthService.handleCallbackWithCode(code),
     logout: () => spotifyAuthService.logout(),
     isAuthenticated: () => spotifyAuthService.isAuthenticated()
 };
