@@ -101,17 +101,32 @@ class SpotifyPlaybackService {
         const token = spotifyAuthService.getAccessToken();
         if (!token) throw new Error('Not authenticated');
 
-        // Use Spotify Web API to start playback on our device
-        await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${this.deviceId}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                uris: [trackUri]
-            })
-        });
+        console.log('Playing track:', trackUri, 'on device:', this.deviceId);
+
+        try {
+            // Use Spotify Web API to start playback on our device
+            const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${this.deviceId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    uris: [trackUri]
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Spotify play failed:', response.status, errorText);
+                throw new Error(`Playback failed: ${response.status}`);
+            }
+
+            console.log('✅ Playback started successfully');
+        } catch (error) {
+            console.error('Error starting playback:', error);
+            throw error;
+        }
     }
 
     async pause() {
