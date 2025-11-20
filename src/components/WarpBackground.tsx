@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
+import { usePlayerStore } from '../stores/usePlayerStore';
 
 export const WarpBackground: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    const { isPlaying, currentTrack } = usePlayerStore();
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -25,31 +28,45 @@ export const WarpBackground: React.FC = () => {
 
         // Star properties
         const stars: { x: number; y: number; z: number; pz: number }[] = [];
-        const numStars = 400; // Reduced count
-        const speed = 2; // Much slower, drifting feel
+        const numStars = 200; // Reduced from 400 for subtlety
+        const baseSpeed = 0.5; // Much slower base speed
 
         for (let i = 0; i < numStars; i++) {
             stars.push({
                 x: (Math.random() - 0.5) * width * 2,
                 y: (Math.random() - 0.5) * height * 2,
                 z: Math.random() * width,
-                pz: Math.random() * width // Previous z
+                pz: Math.random() * width
             });
         }
 
         let animationFrameId: number;
 
         const animate = () => {
-            // Trail effect - darker fade for cleaner look
-            ctx.fillStyle = 'rgba(3, 0, 20, 0.2)';
+            // Darker fade for cleaner look
+            ctx.fillStyle = 'rgba(10, 3, 3, 0.2)'; // Matches background better
             ctx.fillRect(0, 0, width, height);
 
             const cx = width / 2;
             const cy = height / 2;
 
+            // Rhythm calculation
+            let beatImpulse = 0;
+            if (isPlaying && currentTrack) {
+                const bpm = currentTrack.bpm || 120;
+                const beatDuration = 60 / bpm;
+                const now = Date.now() / 1000;
+                const phase = (now % beatDuration) / beatDuration;
+
+                // Sharp impulse on the beat
+                beatImpulse = Math.pow(Math.sin(phase * Math.PI), 10) * 0.5;
+            }
+
+            const currentSpeed = baseSpeed + (beatImpulse * 2); // Speed up on beat
+
             stars.forEach(star => {
-                // Move star closer
-                star.z -= speed;
+                // Move star
+                star.z -= currentSpeed;
 
                 // Reset if behind camera
                 if (star.z <= 0) {
@@ -71,17 +88,18 @@ export const WarpBackground: React.FC = () => {
 
                 // Draw star trail
                 if (x >= 0 && x <= width && y >= 0 && y <= height) {
-                    const size = (1 - star.z / width) * 2;
-                    const alpha = (1 - star.z / width) * 0.5; // Lower opacity
+                    const size = (1 - star.z / width);
+                    // Modulate opacity with beat
+                    const alpha = ((1 - star.z / width) * 0.3) + (beatImpulse * 0.2);
 
                     ctx.beginPath();
-                    // Gradient from violet to blue
+                    // Subtle gradient
                     const gradient = ctx.createLinearGradient(px, py, x, y);
-                    gradient.addColorStop(0, `rgba(139, 92, 246, ${alpha})`); // Violet
-                    gradient.addColorStop(1, `rgba(59, 130, 246, ${alpha})`); // Blue
+                    gradient.addColorStop(0, `rgba(225, 29, 72, ${alpha})`); // Primary Red
+                    gradient.addColorStop(1, `rgba(245, 158, 11, ${alpha})`); // Secondary Amber
 
                     ctx.strokeStyle = gradient;
-                    ctx.lineWidth = size;
+                    ctx.lineWidth = size * (1 + beatImpulse); // Pulse size
                     ctx.moveTo(px, py);
                     ctx.lineTo(x, y);
                     ctx.stroke();
@@ -97,7 +115,7 @@ export const WarpBackground: React.FC = () => {
             window.removeEventListener('resize', resize);
             cancelAnimationFrame(animationFrameId);
         };
-    }, []);
+    }, [isPlaying, currentTrack]);
 
     return (
         <canvas

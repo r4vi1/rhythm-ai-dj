@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { spotifyPlayback } from '../services/spotifyPlayback';
 import { MinimizedPlayer } from './MinimizedPlayer';
@@ -37,5 +38,13 @@ export const Player: React.FC = () => {
 
     if (!currentTrack) return null;
 
-    return isMaximized ? <MaximizedPlayer /> : <MinimizedPlayer />;
+    return (
+        <AnimatePresence mode="wait">
+            {isMaximized ? (
+                <MaximizedPlayer key="maximized" />
+            ) : (
+                <MinimizedPlayer key="minimized" />
+            )}
+        </AnimatePresence>
+    );
 };

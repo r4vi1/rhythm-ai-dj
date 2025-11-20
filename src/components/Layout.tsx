@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu } from 'lucide-react';
 import { MagneticButton } from './MagneticButton';
 import { Logo } from './Logo';
+import { InteractiveBackground } from './InteractiveBackground';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -9,7 +10,14 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
-        <div className="min-h-screen bg-background text-white font-sans selection:bg-primary selection:text-black noise-bg">
+        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-primary selection:text-black overflow-x-hidden">
+            {/* Deep Crimson Gradient Background with Pulsing Effect */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background animate-pulse-slow mix-blend-overlay" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_100%)] opacity-80" />
+                <InteractiveBackground isHovering={false} />
+            </div>
+
             {/* Fixed Header */}
             <header className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex items-center justify-between mix-blend-difference">
                 <Logo />

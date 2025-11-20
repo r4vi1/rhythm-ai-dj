@@ -8,6 +8,7 @@ export interface Track {
     audioUrl: string;
     duration: number;
     vibe?: string;
+    bpm?: number;
 }
 
 interface PlayerState {
@@ -56,7 +57,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         if (track.audioUrl) {
             // If we are already playing, try to transition?
             // For now, direct play for explicit clicks, transition for auto-next
-            transitionEngine.play(track.audioUrl);
+            transitionEngine.play(track);
+        }
+
+        // Pre-analyze the next track in the queue
+        const { queue } = get();
+        const currentIndex = queue.findIndex(t => t.id === track.id);
+        if (currentIndex !== -1 && currentIndex < queue.length - 1) {
+            const nextTrack = queue[currentIndex + 1];
+            import('../services/audioAnalyzer').then(({ audioAnalyzer }) => {
+                audioAnalyzer.analyzeTrack(nextTrack).catch(console.error);
+            });
         }
     },
 
@@ -81,7 +92,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const { queue, currentTrack } = get();
         const currentIndex = queue.findIndex(t => t.id === currentTrack?.id);
         if (currentIndex < queue.length - 1) {
-            get().setCurrentTrack(queue[currentIndex + 1]);
+            const nextTrack = queue[currentIndex + 1];
+            if (currentTrack) {
+                // Trigger intelligent transition
+                transitionEngine.intelligentTransition(currentTrack, nextTrack);
+            } else {
+                get().setCurrentTrack(nextTrack);
+            }
         }
     },
 

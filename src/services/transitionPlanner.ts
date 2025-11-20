@@ -3,7 +3,7 @@ import type { TrackAnalysis } from './audioAnalyzer';
 
 export interface TransitionPlan {
     duration: number; // seconds (4-16 optimal)
-    technique: 'crossfade' | 'bass-swap' | 'filter-sweep' | 'echo-out';
+    technique: 'crossfade' | 'bass-swap' | 'filter-sweep' | 'echo-out' | 'bridge';
     bpmAdjustment: boolean;
     eqCurve: {
         low: 'swap' | 'cut' | 'boost';

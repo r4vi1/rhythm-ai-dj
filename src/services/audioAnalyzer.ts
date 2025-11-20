@@ -11,6 +11,8 @@ export interface TrackAnalysis {
         intro: number; // Duration in seconds
         outro: number; // Duration in seconds  
         drop: number; // Timestamp of main drop/chorus
+        hasFadeOut?: boolean;
+        startsWithBeat?: boolean;
     };
 }
 
@@ -47,9 +49,11 @@ Provide ACCURATE analysis in this EXACT JSON format:
   "genre": "<primary genre: House/Techno/Hip-Hop/Pop/Rock/etc>",
   "mood": "<emotional tone: energetic/melancholic/uplifting/dark/etc>",
   "structure": {
-    "intro": <seconds of intro before main beat, typically 8-32>,
-    "outro": <seconds of outro/fade section, typically 8-32>,
-    "drop": <seconds into track where main drop/chorus hits, typically 45-90>
+    "intro": <seconds of intro before main beat. 0 if starts immediately.>,
+    "outro": <seconds of outro/fade section. 0 if sudden end.>,
+    "drop": <seconds into track where main drop/chorus hits>,
+    "hasFadeOut": <boolean, true if track fades out volume at end>,
+    "startsWithBeat": <boolean, true if track starts with a kick/drum beat>
   }
 }
 

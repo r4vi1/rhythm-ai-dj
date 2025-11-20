@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Search, ArrowRight, Sparkles } from 'lucide-react';
+import { Search, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { mockApi } from '../services/mockApi';
 import { usePlayerStore } from '../stores/usePlayerStore';
 
 export const SearchBar: React.FC = () => {
@@ -91,22 +90,22 @@ export const SearchBar: React.FC = () => {
                 transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                 className={`relative group transition-all duration-500`}
             >
-                {/* Neon Glow Border */}
-                <div className={`absolute -inset-[2px] bg-gradient-to-r from-primary via-secondary to-primary rounded-2xl opacity-0 transition-opacity duration-500 ${isFocused ? 'opacity-100 blur-md' : 'group-hover:opacity-50 blur-sm'}`} />
+                {/* Neon Glow Border - Refined for smoothness */}
+                <div className={`absolute -inset-[1px] bg-gradient-to-r from-primary/40 via-secondary/40 to-primary/40 rounded-2xl opacity-0 transition-all duration-700 ${isFocused ? 'opacity-100 blur-[1px]' : 'group-hover:opacity-30 blur-[0px]'}`} />
 
-                {/* Subtle Glow Behind */}
-                <div className={`absolute -inset-1 bg-gradient-to-r from-primary/20 via-secondary/20 to-primary/20 blur-[40px] rounded-2xl transition-opacity duration-700 ${isFocused ? 'opacity-100' : 'opacity-0'}`} />
+                {/* Subtle Glow Behind - Smoother gradient */}
+                <div className={`absolute -inset-8 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 blur-[40px] rounded-full transition-opacity duration-1000 ${isFocused ? 'opacity-50' : 'opacity-0'}`} />
 
                 {/* Main Container */}
                 <div className={`
-                    relative flex items-center bg-[#0a0303] 
-                    border border-white/10 transition-all duration-300 rounded-2xl overflow-hidden
-                    ${isFocused ? 'shadow-[0_0_50px_-12px_rgba(225,29,72,0.5)]' : 'shadow-2xl'}
+                    relative flex items-center bg-[#0a0303]/80 backdrop-blur-xl
+                    border transition-all duration-500 rounded-2xl overflow-hidden
+                    ${isFocused ? 'border-white/20 shadow-[0_0_40px_-10px_rgba(225,29,72,0.2)]' : 'border-white/10 shadow-2xl'}
                 `}>
 
                     {/* Icon Area */}
                     <div className="pl-6 pr-4 py-6">
-                        <Search className={`w-6 h-6 ${isFocused ? 'text-primary drop-shadow-[0_0_10px_rgba(225,29,72,0.8)]' : 'text-white/40'} transition-all duration-300`} />
+                        <Search className={`w-6 h-6 ${isFocused ? 'text-primary drop-shadow-[0_0_8px_rgba(225,29,72,0.6)]' : 'text-white/40'} transition-all duration-300`} />
                     </div>
 
                     {/* Input */}
@@ -116,8 +115,8 @@ export const SearchBar: React.FC = () => {
                         onChange={(e) => setQuery(e.target.value)}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
-                        placeholder="Ask the archive..."
-                        className="w-full bg-transparent border-none outline-none text-xl md:text-2xl font-body font-light text-white placeholder-white/20 px-2 py-6 leading-none tracking-wide"
+                        placeholder="How are we feeling today?"
+                        className="w-full bg-transparent border-none outline-none text-xl md:text-2xl font-body font-light text-white placeholder-white/30 px-2 py-6 leading-none tracking-wide"
                     />
 
                     {/* Action Area */}
@@ -130,7 +129,7 @@ export const SearchBar: React.FC = () => {
                                     exit={{ opacity: 0, scale: 0.8 }}
                                     type="submit"
                                     disabled={isLoading}
-                                    className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-md"
                                 >
                                     {isLoading ? (
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -142,7 +141,7 @@ export const SearchBar: React.FC = () => {
                         </AnimatePresence>
 
                         {!query && (
-                            <div className="hidden md:flex items-center gap-2 text-xs font-mono text-white/20 border border-white/5 px-3 py-1.5 rounded-lg">
+                            <div className="hidden md:flex items-center gap-2 text-xs font-mono text-white/30 border border-white/10 px-3 py-1.5 rounded-lg backdrop-blur-sm">
                                 <span className="text-[10px]">⌘</span> K
                             </div>
                         )}
@@ -150,7 +149,7 @@ export const SearchBar: React.FC = () => {
                 </div>
             </motion.form>
 
-            {/* Quick Prompts (Subtle Pills) */}
+            {/* Quick Prompts (Glassmorphic Pills) */}
             <div className="mt-8 flex flex-wrap justify-center gap-3">
                 {['Ambient Flow', 'Deep Focus', 'Night Drive', 'Cinematic'].map((tag, i) => (
                     <motion.button
@@ -159,10 +158,9 @@ export const SearchBar: React.FC = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 + i * 0.05 }}
                         onClick={() => setQuery(tag)}
-                        className="group flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 rounded-full transition-all duration-300"
+                        className="group flex items-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-full transition-all duration-300 hover:scale-105 backdrop-blur-md shadow-lg hover:shadow-primary/10"
                     >
-                        <Sparkles className="w-3 h-3 text-primary/50 group-hover:text-primary transition-colors" />
-                        <span className="text-sm font-body text-white/60 group-hover:text-white transition-colors">
+                        <span className="text-sm font-body text-white/60 group-hover:text-white transition-colors tracking-wider">
                             {tag}
                         </span>
                     </motion.button>

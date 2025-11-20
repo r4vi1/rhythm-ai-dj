@@ -90,43 +90,88 @@ class SpotifyPlaybackService {
         });
     }
 
+    async transferPlayback(deviceId: string) {
+        const token = spotifyAuthService.getAccessToken();
+        if (!token) return;
+
+        await fetch('https://api.spotify.com/v1/me/player', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                device_ids: [deviceId],
+                play: false // Don't auto-play, just activate
+            })
+        });
+    }
+
     async play(trackUri: string) {
         if (!this.isReady || !this.deviceId) {
+            console.log('⚠️ Player not ready, initializing...');
             const initialized = await this.initialize();
             if (!initialized) {
                 throw new Error('Spotify player not ready');
             }
+            // Wait a bit for the device to be fully registered
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         const token = spotifyAuthService.getAccessToken();
         if (!token) throw new Error('Not authenticated');
 
-        console.log('Playing track:', trackUri, 'on device:', this.deviceId);
+        console.log('▶️ Attempting to play:', trackUri, 'on device:', this.deviceId);
 
-        try {
-            // Use Spotify Web API to start playback on our device
-            const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${this.deviceId}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    uris: [trackUri]
-                })
-            });
+        const playRequest = async (retries = 3): Promise<void> => {
+            try {
+                const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${this.deviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        uris: [trackUri]
+                    })
+                });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Spotify play failed:', response.status, errorText);
-                throw new Error(`Playback failed: ${response.status}`);
+                if (response.status === 404) {
+                    console.warn('⚠️ Device not found (404), attempting to activate device...');
+                    if (this.deviceId) {
+                        await this.transferPlayback(this.deviceId);
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Wait for activation
+                    }
+                    if (retries > 0) {
+                        console.log(`🔄 Retrying playback (${retries} attempts left)...`);
+                        return playRequest(retries - 1);
+                    }
+                }
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Spotify play failed:', response.status, errorText);
+
+                    // If 403, it might be a premium issue or scope issue
+                    if (response.status === 403) {
+                        throw new Error('Spotify Premium required or playback restricted');
+                    }
+
+                    throw new Error(`Playback failed: ${response.status}`);
+                }
+
+                console.log('✅ Playback request successful');
+            } catch (error) {
+                if (retries > 0) {
+                    console.warn(`⚠️ Playback error, retrying (${retries} left):`, error);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return playRequest(retries - 1);
+                }
+                throw error;
             }
+        };
 
-            console.log('✅ Playback started successfully');
-        } catch (error) {
-            console.error('Error starting playback:', error);
-            throw error;
-        }
+        await playRequest();
     }
 
     async pause() {

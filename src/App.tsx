@@ -1,7 +1,9 @@
+
 import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Hero } from './components/Hero';
 import { AtmosphereBackground } from './components/AtmosphereBackground';
+import { PlaybackMonitor } from './components/PlaybackMonitor';
 import { SearchBar } from './components/SearchBar';
 import { TrackGrid } from './components/TrackGrid';
 import { Player } from './components/Player';
@@ -52,20 +54,21 @@ function App() {
   }
 
   return (
-    <Layout>
-      <AtmosphereBackground />
-      <Hero />
+    <>
+      <Layout>
+        <Hero />
+        <PlaybackMonitor />
+        <div className="relative z-10 flex flex-col h-full">
+          <SearchBar />
+        </div>
 
-      <div className="relative z-20 mt-0 md:mt-4">
-        <SearchBar />
-      </div>
-
-      <TrackGrid />
+        <TrackGrid />
+      </Layout>
 
       <ErrorBoundary>
         <Player />
       </ErrorBoundary>
-    </Layout>
+    </>
   );
 }
 

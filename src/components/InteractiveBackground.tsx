@@ -90,12 +90,14 @@ export const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ is
                 // Draw
                 let size = 1.5 + (interaction * 2); // Particles grow near mouse
 
-                // Base alpha + Interaction + Global Hover Boost
-                let alpha = 0.3 + (interaction * 0.7);
+                // Base alpha + Interaction + Global Hover Boost + Subtle Pulse
+                // Pulse varies between 0 and 0.1 over time
+                const pulse = (Math.sin(time * 0.5) + 1) * 0.05;
+                let alpha = 0.8 + (interaction * 0.5) + pulse; // Significantly increased base alpha
 
                 if (isHoveringRef.current) {
-                    alpha += 0.35; // Increased brightness boost (was 0.2)
-                    size *= 0.8;   // Slightly smaller particles on hover
+                    alpha += 0.2;
+                    size *= 1.2;
                 }
 
                 ctx.globalAlpha = Math.min(1, alpha);
@@ -118,7 +120,8 @@ export const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ is
     return (
         <canvas
             ref={canvasRef}
-            className="absolute inset-0 z-0 pointer-events-none mix-blend-screen"
+            className="absolute inset-0 z-[1] pointer-events-none"
+            style={{ width: '100%', height: '100%' }}
         />
     );
 };

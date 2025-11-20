@@ -31,68 +31,62 @@ export const MinimizedPlayer: React.FC = () => {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed bottom-6 left-6 right-6 z-50"
         >
-            <div className="max-w-screen-xl mx-auto bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-                {/* Progress Bar - Top */}
-                <div className="h-1 bg-white/5 relative">
+            <div className="max-w-3xl mx-auto bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 rounded-full overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+                {/* Progress Bar - Top (Integrated) */}
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5">
                     <div
-                        className="h-full bg-gradient-to-r from-primary to-secondary transition-all"
+                        className="h-full bg-primary shadow-[0_0_10px_rgba(225,29,72,0.8)] transition-all duration-300 ease-linear"
                         style={{ width: `${progressPercent}%` }}
                     />
                 </div>
 
                 {/* Minimal Player Bar */}
-                <div className="flex items-center gap-5 p-4">
+                <div className="flex items-center justify-between px-6 py-4 gap-6">
                     {/* Album Art + Info */}
                     <button
                         onClick={toggleMaximized}
-                        className="flex items-center gap-4 flex-1 min-w-0 group cursor-pointer"
+                        className="flex items-center gap-4 flex-1 min-w-0 group cursor-pointer text-left"
                     >
-                        <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden">
+                        <div className="relative w-12 h-12 flex-shrink-0 rounded-full overflow-hidden border border-white/10 group-hover:border-primary/50 transition-colors">
                             <img
                                 src={currentTrack.coverUrl}
                                 alt={currentTrack.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover animate-spin-slow"
+                                style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                             />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Maximize2 className="w-5 h-5 text-white" />
+                                <Maximize2 className="w-4 h-4 text-white" />
                             </div>
                         </div>
 
-                        <div className="flex-1 min-w-0 text-left">
-                            <h4 className="font-display text-base uppercase tracking-tight text-white truncate group-hover:text-primary transition-colors">
+                        <div className="flex-1 min-w-0">
+                            <h4 className="font-display text-sm uppercase tracking-wider text-white truncate group-hover:text-primary transition-colors">
                                 {currentTrack.title}
                             </h4>
-                            <p className="text-sm text-white/60 uppercase tracking-wider truncate">
+                            <p className="text-xs text-white/40 uppercase tracking-widest truncate">
                                 {currentTrack.artist}
                             </p>
                         </div>
                     </button>
 
                     {/* Controls */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-4 flex-shrink-0">
                         <button
                             onClick={handlePlayPause}
-                            className="w-12 h-12 flex items-center justify-center bg-primary hover:bg-white text-black rounded-full transition-all hover:scale-105 shadow-lg shadow-primary/30"
+                            className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full transition-all hover:scale-105 hover:bg-primary hover:text-white shadow-lg"
                         >
                             {isPlaying ? (
-                                <Pause className="w-5 h-5 fill-current" />
+                                <Pause className="w-4 h-4 fill-current" />
                             ) : (
-                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                                <Play className="w-4 h-4 fill-current ml-0.5" />
                             )}
                         </button>
 
                         <button
                             onClick={nextTrack}
-                            className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white transition-all hover:scale-110 bg-white/5 hover:bg-white/10 rounded-full"
+                            className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-all hover:scale-110"
                         >
-                            <SkipForward className="w-4 h-4" />
-                        </button>
-
-                        <button
-                            onClick={toggleMaximized}
-                            className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-primary transition-all hover:scale-110 bg-white/5 hover:bg-white/10 rounded-full ml-2"
-                        >
-                            <Maximize2 className="w-4 h-4" />
+                            <SkipForward className="w-5 h-5" />
                         </button>
                     </div>
                 </div>

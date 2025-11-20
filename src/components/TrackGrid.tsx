@@ -33,9 +33,9 @@ export const TrackGrid: React.FC = () => {
                         whileInView={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.1 }}
                         className={`
-                            group relative aspect-square bg-white/5 backdrop-blur-sm 
+                            group relative aspect-square bg-white/[0.02] backdrop-blur-sm 
                             border border-white/5 hover:border-white/20 
-                            rounded-2xl overflow-hidden cursor-pointer transition-all duration-500
+                            rounded-none overflow-hidden cursor-pointer transition-all duration-700
                             ${i === 0 ? 'md:col-span-2 md:row-span-2' : ''}
                         `}
                         onClick={() => {
@@ -50,16 +50,16 @@ export const TrackGrid: React.FC = () => {
                         <img
                             src={track.coverUrl}
                             alt={track.title}
-                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-60 group-hover:opacity-40"
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 opacity-50 group-hover:opacity-30 grayscale group-hover:grayscale-0"
                         />
 
                         {/* Gradient Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent opacity-90" />
 
                         {/* Content */}
                         <div className="absolute inset-0 p-6 md:p-8 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
-                                <span className="text-[10px] font-mono border border-white/10 px-2 py-1 rounded-full bg-black/20 backdrop-blur-md text-white/60">
+                                <span className="text-[10px] font-mono border border-white/10 px-2 py-1 bg-black/40 backdrop-blur-md text-white/40 group-hover:text-primary group-hover:border-primary/30 transition-colors">
                                     0{i + 1}
                                 </span>
                                 {currentTrack?.id === track.id && (
@@ -69,28 +69,28 @@ export const TrackGrid: React.FC = () => {
                                                 key={bar}
                                                 animate={{ height: [4, 12, 4] }}
                                                 transition={{ duration: 0.5, repeat: Infinity, delay: bar * 0.1 }}
-                                                className="w-1 bg-primary rounded-full"
+                                                className="w-1 bg-primary rounded-full shadow-[0_0_10px_rgba(225,29,72,0.8)]"
                                             />
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
-                                <h3 className={`font-display uppercase tracking-tight leading-none mb-2 text-white ${i === 0 ? 'text-4xl' : 'text-xl'}`}>
+                            <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                                <h3 className={`font-display uppercase tracking-tighter leading-none mb-3 text-white mix-blend-overlay ${i === 0 ? 'text-5xl' : 'text-2xl'}`}>
                                     {track.title}
                                 </h3>
-                                <p className="text-white/50 text-xs md:text-sm uppercase tracking-wider font-medium">{track.artist}</p>
+                                <p className="text-primary/80 text-xs md:text-sm uppercase tracking-[0.2em] font-medium">{track.artist}</p>
                             </div>
                         </div>
 
-                        {/* Play Button Reveal (Subtle) */}
+                        {/* Play Button Reveal (Minimal) */}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                            <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform duration-500 hover:bg-white/20">
+                            <div className="w-20 h-20 rounded-full border border-white/10 flex items-center justify-center backdrop-blur-sm hover:bg-white/5 transition-colors">
                                 {currentTrack?.id === track.id && isPlaying ? (
-                                    <Pause className="w-6 h-6 text-white fill-current" />
+                                    <Pause className="w-8 h-8 text-white fill-white" />
                                 ) : (
-                                    <Play className="w-6 h-6 text-white fill-current ml-1" />
+                                    <Play className="w-8 h-8 text-white fill-white ml-1" />
                                 )}
                             </div>
                         </div>
