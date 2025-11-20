@@ -1,106 +1,229 @@
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = 'https://www.googleapis.com/auth/youtube.readonly';
+const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+const REDIRECT_URI = 'http://127.0.0.1:5173/callback';
+const SCOPES = [
+    'streaming',
+    'user-read-email',
+    'user-read-private',
+    'user-library-read',
+    'user-library-modify',
+    'user-top-read',
+    'playlist-read-private',
+    'playlist-modify-public',
+    'user-read-playback-state',
+    'user-modify-playback-state'
+].join(' ');
 
-interface TokenResponse {
+interface SpotifyTokenResponse {
     access_token: string;
-    expires_in: number;
-    scope: string;
     token_type: string;
+    expires_in: number;
+    refresh_token?: string;
+    scope: string;
 }
 
-export const authService = {
+// PKCE helper functions
+function generateRandomString(length: number): string {
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const values = crypto.getRandomValues(new Uint8Array(length));
+    return values.reduce((acc, x) => acc + possible[x % possible.length], '');
+}
+
+async function sha256(plain: string): Promise<ArrayBuffer> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(plain);
+    return window.crypto.subtle.digest('SHA-256', data);
+}
+
+function base64encode(input: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(input)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+}
+
+export const spotifyAuthService = {
     accessToken: null as string | null,
+    refreshToken: null as string | null,
     tokenExpiration: 0,
 
     init: () => {
         // Load token from local storage if valid
-        const storedToken = localStorage.getItem('google_access_token');
-        const storedExpiration = localStorage.getItem('google_token_expiration');
+        const storedToken = localStorage.getItem('spotify_access_token');
+        const storedRefresh = localStorage.getItem('spotify_refresh_token');
+        const storedExpiration = localStorage.getItem('spotify_token_expiration');
 
         if (storedToken && storedExpiration) {
             const now = Date.now();
             if (now < parseInt(storedExpiration)) {
-                authService.accessToken = storedToken;
-                authService.tokenExpiration = parseInt(storedExpiration);
+                spotifyAuthService.accessToken = storedToken;
+                spotifyAuthService.refreshToken = storedRefresh;
+                spotifyAuthService.tokenExpiration = parseInt(storedExpiration);
+            } else if (storedRefresh) {
+                // Try to refresh token
+                spotifyAuthService.refreshAccessToken();
             } else {
-                authService.logout();
+                spotifyAuthService.logout();
             }
         }
     },
 
-    login: (): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            if (!CLIENT_ID) {
-                console.error("Missing VITE_GOOGLE_CLIENT_ID");
-                reject("Missing Client ID");
-                return;
-            }
-
-            const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
-
-            // Create <form> element to submit parameters to OAuth 2.0 endpoint.
-            const form = document.createElement('form');
-            form.setAttribute('method', 'GET');
-            form.setAttribute('action', oauth2Endpoint);
-
-            const params: Record<string, string> = {
-                'client_id': CLIENT_ID,
-                'redirect_uri': window.location.origin,
-                'response_type': 'token',
-                'scope': SCOPES,
-                'include_granted_scopes': 'true',
-                'state': 'pass-through value'
-            };
-
-            for (const p in params) {
-                const input = document.createElement('input');
-                input.setAttribute('type', 'hidden');
-                input.setAttribute('name', p);
-                input.setAttribute('value', params[p]);
-                form.appendChild(input);
-            }
-
-            document.body.appendChild(form);
-            form.submit();
-        });
-    },
-
-    handleCallback: () => {
-        // Parse query string to see if page request is coming from OAuth 2.0 server.
-        const fragmentString = location.hash.substring(1);
-        const params: Record<string, string> = {};
-        const regex = /([^&=]+)=([^&]*)/g;
-        let m;
-        while (m = regex.exec(fragmentString)) {
-            params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);
+    login: async (): Promise<void> => {
+        if (!SPOTIFY_CLIENT_ID) {
+            console.error("Missing VITE_SPOTIFY_CLIENT_ID");
+            throw new Error("Missing Spotify Client ID");
         }
 
-        if (params['access_token']) {
-            authService.accessToken = params['access_token'];
-            const expiresIn = parseInt(params['expires_in']);
-            authService.tokenExpiration = Date.now() + expiresIn * 1000;
+        // Generate code verifier and challenge for PKCE
+        const codeVerifier = generateRandomString(64);
+        const hashed = await sha256(codeVerifier);
+        const codeChallenge = base64encode(hashed);
 
-            localStorage.setItem('google_access_token', authService.accessToken);
-            localStorage.setItem('google_token_expiration', authService.tokenExpiration.toString());
+        // Store code verifier for later
+        localStorage.setItem('spotify_code_verifier', codeVerifier);
+
+        // Build authorization URL
+        const authUrl = new URL('https://accounts.spotify.com/authorize');
+        const params = {
+            client_id: SPOTIFY_CLIENT_ID,
+            response_type: 'code',
+            redirect_uri: REDIRECT_URI,
+            code_challenge_method: 'S256',
+            code_challenge: codeChallenge,
+            scope: SCOPES,
+        };
+
+        authUrl.search = new URLSearchParams(params).toString();
+        window.location.href = authUrl.toString();
+    },
+
+    handleCallback: async (): Promise<boolean> => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        if (!code) {
+            return false;
+        }
+
+        const codeVerifier = localStorage.getItem('spotify_code_verifier');
+        if (!codeVerifier) {
+            console.error('No code verifier found');
+            return false;
+        }
+
+        try {
+            // Exchange code for token
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    client_id: SPOTIFY_CLIENT_ID!,
+                    grant_type: 'authorization_code',
+                    code: code,
+                    redirect_uri: REDIRECT_URI,
+                    code_verifier: codeVerifier,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to exchange code for token');
+            }
+
+            const data: SpotifyTokenResponse = await response.json();
+
+            // Store tokens
+            spotifyAuthService.accessToken = data.access_token;
+            spotifyAuthService.refreshToken = data.refresh_token || null;
+            spotifyAuthService.tokenExpiration = Date.now() + data.expires_in * 1000;
+
+            localStorage.setItem('spotify_access_token', data.access_token);
+            if (data.refresh_token) {
+                localStorage.setItem('spotify_refresh_token', data.refresh_token);
+            }
+            localStorage.setItem('spotify_token_expiration', spotifyAuthService.tokenExpiration.toString());
+            localStorage.removeItem('spotify_code_verifier');
 
             // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
+            window.history.replaceState({}, document.title, '/');
             return true;
+        } catch (error) {
+            console.error('Error handling callback:', error);
+            return false;
         }
-        return false;
+    },
+
+    refreshAccessToken: async (): Promise<boolean> => {
+        const refreshToken = spotifyAuthService.refreshToken || localStorage.getItem('spotify_refresh_token');
+        if (!refreshToken) {
+            return false;
+        }
+
+        try {
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    client_id: SPOTIFY_CLIENT_ID!,
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to refresh token');
+            }
+
+            const data: SpotifyTokenResponse = await response.json();
+
+            spotifyAuthService.accessToken = data.access_token;
+            spotifyAuthService.tokenExpiration = Date.now() + data.expires_in * 1000;
+
+            localStorage.setItem('spotify_access_token', data.access_token);
+            localStorage.setItem('spotify_token_expiration', spotifyAuthService.tokenExpiration.toString());
+
+            return true;
+        } catch (error) {
+            console.error('Error refreshing token:', error);
+            spotifyAuthService.logout();
+            return false;
+        }
     },
 
     logout: () => {
-        authService.accessToken = null;
-        authService.tokenExpiration = 0;
-        localStorage.removeItem('google_access_token');
-        localStorage.removeItem('google_token_expiration');
+        spotifyAuthService.accessToken = null;
+        spotifyAuthService.refreshToken = null;
+        spotifyAuthService.tokenExpiration = 0;
+        localStorage.removeItem('spotify_access_token');
+        localStorage.removeItem('spotify_refresh_token');
+        localStorage.removeItem('spotify_token_expiration');
+        localStorage.removeItem('spotify_code_verifier');
     },
 
-    isAuthenticated: () => {
-        return !!authService.accessToken && Date.now() < authService.tokenExpiration;
+    isAuthenticated: (): boolean => {
+        return !!spotifyAuthService.accessToken && Date.now() < spotifyAuthService.tokenExpiration;
+    },
+
+    getAccessToken: (): string | null => {
+        if (spotifyAuthService.isAuthenticated()) {
+            return spotifyAuthService.accessToken;
+        }
+        return null;
     }
 };
 
 // Initialize on load
-authService.init();
+spotifyAuthService.init();
+
+// Keep old authService for backwards compatibility during migration
+export const authService = {
+    accessToken: null as string | null,
+    tokenExpiration: 0,
+    init: () => { },
+    login: () => spotifyAuthService.login(),
+    handleCallback: () => spotifyAuthService.handleCallback(),
+    logout: () => spotifyAuthService.logout(),
+    isAuthenticated: () => spotifyAuthService.isAuthenticated()
+};

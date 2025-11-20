@@ -11,17 +11,31 @@ import { authService } from './services/authService';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    // Check for OAuth callback
-    const isCallback = authService.handleCallback();
-    if (isCallback) {
-      // Clear hash is handled in service, just update state
-      setIsAuthenticated(true);
-    } else {
-      setIsAuthenticated(authService.isAuthenticated());
-    }
+    const checkAuth = async () => {
+      // Check if this is a callback URL with code parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('code')) {
+        const success = await authService.handleCallback();
+        setIsAuthenticated(success);
+      } else {
+        setIsAuthenticated(authService.isAuthenticated());
+      }
+      setIsCheckingAuth(false);
+    };
+
+    checkAuth();
   }, []);
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;

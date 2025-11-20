@@ -1,120 +1,185 @@
 import * as Tone from 'tone';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { bridgeGenerator } from './bridgeGenerator';
+import type { TransitionPlan } from './transitionPlanner';
+import type { Track } from '../stores/usePlayerStore';
+import { audioAnalyzer } from './audioAnalyzer';
+import { transitionPlanner } from './transitionPlanner';
+import { spotifyPlayback } from './spotifyPlayback';
 
 class TransitionEngine {
-    private playerA: Tone.Player;
-    private playerB: Tone.Player;
-    private crossFade: Tone.CrossFade;
-    private activePlayer: 'A' | 'B' = 'A';
-    private isInitialized = false;
+    private player: any; // Spotify player reference
+    private isTransitioning = false;
 
-    // We use Tone.Player which loads the full buffer. 
-    // For long tracks (streaming), this might be heavy, but it allows precise scheduling and pitch/rate control.
-    // If memory is an issue, we might fallback to MediaElementSource, but Tone.Player is better for "DJ" features.
-
-    constructor() {
-        this.crossFade = new Tone.CrossFade().toDestination();
-
-        this.playerA = new Tone.Player().connect(this.crossFade.a);
-        this.playerB = new Tone.Player().connect(this.crossFade.b);
-
-        // Default to A
-        this.crossFade.fade.value = 0;
-    }
-
-    public async initialize() {
-        if (this.isInitialized) return;
+    public async play(track: Track) {
         await Tone.start();
-        this.isInitialized = true;
+
+        // Stop any ongoing transition
+        bridgeGenerator.stop();
+
+        // Play via Spotify
+        await spotifyPlayback.play(track.audioUrl);
+        usePlayerStore.getState().setIsPlaying(true);
     }
 
-    public async play(url: string) {
-        if (!this.isInitialized) await this.initialize();
+    public async intelligentTransition(currentTrack: Track, nextTrack: Track) {
+        if (this.isTransitioning) return;
 
-        // Stop current if playing
-        this.playerA.stop();
-        this.playerB.stop();
-        bridgeGenerator.stop(); // Ensure bridge is off
-
-        // Reset to Player A
-        this.activePlayer = 'A';
-        this.crossFade.fade.value = 0;
+        this.isTransitioning = true;
+        console.log('🎛️ Starting intelligent transition...');
 
         try {
-            await this.playerA.load(url);
-            this.playerA.start();
-            usePlayerStore.getState().setIsPlaying(true);
+            // 1. Analyze both tracks
+            console.log('  📊 Analyzing tracks...');
+            const [analysis1, analysis2] = await Promise.all([
+                audioAnalyzer.analyzeTrack(currentTrack),
+                audioAnalyzer.analyzeTrack(nextTrack)
+            ]);
+
+            console.log(`  Current: ${analysis1.bpm} BPM, ${analysis1.key}, ${analysis1.energy} energy`);
+            console.log(`  Next: ${analysis2.bpm} BPM, ${analysis2.key}, ${analysis2.energy} energy`);
+
+            // 2. Plan transition
+            console.log('  🧠 Planning transition strategy...');
+            const plan = await transitionPlanner.plan(analysis1, analysis2);
+            console.log(`  Strategy: ${plan.technique}, ${plan.duration}s, EQ: ${plan.eqCurve.low}`);
+
+            // 3. Execute transition based on plan
+            await this.executeTransition(currentTrack, nextTrack, plan, analysis1, analysis2);
+
         } catch (error) {
-            console.error("Failed to load track:", error);
+            console.error('❌ Transition failed:', error);
+            // Fallback to simple crossfade
+            await this.simpleCrossfade(nextTrack);
+        } finally {
+            this.isTransitioning = false;
         }
     }
 
-    public async transitionTo(nextUrl: string, transitionDuration: number = 8) {
-        if (!this.isInitialized) await this.initialize();
+    private async executeTransition(
+        currentTrack: Track,
+        nextTrack: Track,
+        plan: TransitionPlan,
+        analysis1: any,
+        analysis2: any
+    ) {
+        const { duration, technique, generatedElements } = plan;
 
-        const targetPlayer = this.activePlayer === 'A' ? this.playerB : this.playerA;
-        const currentPlayer = this.activePlayer === 'A' ? this.playerA : this.playerB;
-        const targetFadeValue = this.activePlayer === 'A' ? 1 : 0;
+        // 1. Start generated bridge elements if requested
+        const hasGeneratedElements = Object.values(generatedElements).some(v => v);
+        if (hasGeneratedElements) {
+            console.log('  🎵 Generating transition elements...');
+            bridgeGenerator.generateFrom(plan, analysis1.bpm, analysis2.bpm);
+        }
 
-        try {
-            // 1. Load next track
-            await targetPlayer.load(nextUrl);
+        // 2. Execute transition technique
+        switch (technique) {
+            case 'bass-swap':
+                await this.bassSwapTransition(currentTrack, nextTrack, duration);
+                break;
+            case 'filter-sweep':
+                await this.filterSweepTransition(currentTrack, nextTrack, duration);
+                break;
+            case 'echo-out':
+                await this.echoOutTransition(currentTrack, nextTrack, duration);
+                break;
+            default:
+                await this.crossfadeTransition(currentTrack, nextTrack, duration);
+        }
 
-            // 2. Determine if we need a Bridge
-            // For MVP, let's assume we always use a bridge for the "DJ Effect" 
-            // In reality, we'd check BPM diff.
-            const useBridge = true;
+        // 3. Stop bridge elements after transition
+        if (hasGeneratedElements) {
+            setTimeout(() => {
+                bridgeGenerator.stop();
+            }, duration * 1000);
+        }
+    }
 
-            if (useBridge) {
-                // Start Bridge Beat
-                // Assume 120 BPM default for now, or detect from metadata
-                bridgeGenerator.start(120);
+    private async bassSwapTransition(currentTrack: Track, nextTrack: Track, duration: number) {
+        console.log('  ⚡ Bass swap technique');
 
-                // Fade IN Bridge (Volume handled in generator, but we could ramp here)
+        // For Spotify, we coordinate volume fades
+        const startTime = Date.now();
+        const transition = setInterval(async () => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Crossfade volumes
+            const currentVolume = (1 - progress) * 100;
+            const nextVolume = progress * 100;
+
+            // Note: Spotify Web Playback SDK doesn't expose EQ controls
+            // So we simulate bass swap with volume curves
+
+            if (progress >= 0.5 && !nextTrack) {
+                // Start next track at midpoint
+                await spotifyPlayback.play(nextTrack.audioUrl);
             }
 
-            // 3. Start next track (synced)
-            // Sync start time? For now, just start immediately for crossfade
-            targetPlayer.start();
+            if (progress >= 1) {
+                clearInterval(transition);
+                usePlayerStore.getState().setCurrentTrack(nextTrack);
+            }
+        }, 50);
+    }
 
-            // 4. Execute Crossfade
-            // Tone.js automation
-            this.crossFade.fade.rampTo(targetFadeValue, transitionDuration);
+    private async filterSweepTransition(currentTrack: Track, nextTrack: Track, duration: number) {
+        console.log('  🌊 Filter sweep technique');
+        // Similar to bass swap - Spotify limitations mean we do volume-based
+        await this.crossfadeTransition(currentTrack, nextTrack, duration);
+    }
 
-            // 5. Cleanup
-            setTimeout(() => {
-                currentPlayer.stop();
-                if (useBridge) bridgeGenerator.stop();
-                this.activePlayer = this.activePlayer === 'A' ? 'B' : 'A';
-            }, transitionDuration * 1000);
+    private async echoOutTransition(currentTrack: Track, nextTrack: Track, duration: number) {
+        console.log('  🔊 Echo out technique');
+        // Would need access to raw audio for true echo effect
+        await this.crossfadeTransition(currentTrack, nextTrack, duration);
+    }
 
-            usePlayerStore.getState().setIsPlaying(true);
+    private async crossfadeTransition(currentTrack: Track, nextTrack: Track, duration: number) {
+        console.log('  〰️  Crossfade technique');
 
-        } catch (error) {
-            console.error("Transition failed:", error);
-        }
+        const startTime = Date.now();
+        let nextStarted = false;
+
+        const transition = setInterval(async () => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Start next track at 30% progress
+            if (progress >= 0.3 && !nextStarted) {
+                await spotifyPlayback.play(nextTrack.audioUrl);
+                nextStarted = true;
+            }
+
+            if (progress >= 1) {
+                clearInterval(transition);
+                usePlayerStore.getState().setCurrentTrack(nextTrack);
+            }
+        }, 100);
+    }
+
+    private async simpleCrossfade(nextTrack: Track) {
+        console.log('  ↔️  Simple crossfade (fallback)');
+        setTimeout(async () => {
+            await spotifyPlayback.play(nextTrack.audioUrl);
+            usePlayerStore.getState().setCurrentTrack(nextTrack);
+        }, 2000);
     }
 
     public pause() {
-        if (this.activePlayer === 'A') this.playerA.stop(); // Tone.Player doesn't really "pause" in the same way, it stops. 
-        // To truly pause we'd need to track offset. 
-        // For MVP, stop is acceptable or we implement offset tracking.
-        else this.playerB.stop();
-
+        spotifyPlayback.pause();
+        bridgeGenerator.stop();
         usePlayerStore.getState().setIsPlaying(false);
     }
 
     public resume() {
-        // Re-start logic would go here (needing offset)
-        // For now, simple start
-        if (this.activePlayer === 'A') this.playerA.start();
-        else this.playerB.start();
+        spotifyPlayback.resume();
         usePlayerStore.getState().setIsPlaying(true);
     }
 
     public setVolume(value: number) {
-        Tone.Destination.volume.value = Tone.gainToDb(value);
+        spotifyPlayback.setVolume(value);
+        bridgeGenerator.setVolume(value);
     }
 }
 

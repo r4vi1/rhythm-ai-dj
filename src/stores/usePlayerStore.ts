@@ -15,17 +15,25 @@ interface PlayerState {
     currentTrack: Track | null;
     volume: number;
     progress: number;
+    shuffle: boolean;
+    isMaximized: boolean;
 
     setIsPlaying: (isPlaying: boolean) => void;
     setCurrentTrack: (track: Track) => void;
     setVolume: (volume: number) => void;
     setProgress: (progress: number) => void;
+    toggleShuffle: () => void;
+    toggleMaximized: () => void;
 
     queue: Track[];
     addToQueue: (track: Track) => void;
     playTrack: (track: Track) => void;
     nextTrack: () => void;
     prevTrack: () => void;
+    shuffleQueue: () => void;
+    reorderQueue: (fromIndex: number, toIndex: number) => void;
+    removeFromQueue: (index: number) => void;
+    clearQueue: () => void;
 }
 
 import { transitionEngine } from '../services/transitionEngine';
@@ -35,6 +43,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     currentTrack: null,
     volume: 0.8,
     progress: 0,
+    shuffle: false,
+    isMaximized: false,
     queue: [],
 
     setIsPlaying: (isPlaying) => {
@@ -57,6 +67,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     setProgress: (progress) => set({ progress }),
 
+    toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
+
+    toggleMaximized: () => set((state) => ({ isMaximized: !state.isMaximized })),
+
     addToQueue: (track) => set((state) => ({ queue: [...state.queue, track] })),
 
     playTrack: (track) => {
@@ -77,5 +91,33 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         if (currentIndex > 0) {
             get().setCurrentTrack(queue[currentIndex - 1]);
         }
-    }
+    },
+
+    shuffleQueue: () => {
+        set((state) => {
+            const shuffled = [...state.queue];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return { queue: shuffled };
+        });
+    },
+
+    reorderQueue: (fromIndex, toIndex) => {
+        set((state) => {
+            const newQueue = [...state.queue];
+            const [removed] = newQueue.splice(fromIndex, 1);
+            newQueue.splice(toIndex, 0, removed);
+            return { queue: newQueue };
+        });
+    },
+
+    removeFromQueue: (index) => {
+        set((state) => ({
+            queue: state.queue.filter((_, i) => i !== index)
+        }));
+    },
+
+    clearQueue: () => set({ queue: [] })
 }));

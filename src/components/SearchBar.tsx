@@ -24,27 +24,29 @@ export const SearchBar: React.FC = () => {
             console.log("✅ Gemini returned:", curatedSongs);
 
             if (curatedSongs.length === 0) {
-                console.warn("⚠️ Gemini returned empty, falling back to mock");
-                // Fallback to mock search if Gemini fails or no key
-                const results = await mockApi.search(query);
+                console.warn("⚠️ Gemini returned empty, falling back to direct search");
+                // Fallback to direct Spotify search
+                const { spotifyService } = await import('../services/spotifyService');
+                const results = await spotifyService.search(query);
                 if (results.length > 0) {
                     setCurrentTrack(results[0]);
+                    results.slice(1).forEach(track => addToQueue(track));
                 }
                 setIsLoading(false);
                 return;
             }
 
-            // 2. Search YouTube for each curated song
-            console.log("🎵 Searching YouTube for curated songs...");
-            const youtubeService = await import('../services/youtubeService').then(m => m.youtubeService);
+            // 2. Search Spotify for each curated song
+            console.log("🎵 Searching Spotify for curated songs...");
+            const { spotifyService } = await import('../services/spotifyService');
 
             let firstTrackFound = false;
 
             for (const song of curatedSongs) {
-                const searchQuery = `${song.title} ${song.artist} audio`;
-                console.log(`  🔎 Searching YouTube for: ${searchQuery}`);
+                const searchQuery = `${song.title} ${song.artist}`;
+                console.log(`  🔎 Searching Spotify for: ${searchQuery}`);
 
-                const searchResults = await youtubeService.search(searchQuery);
+                const searchResults = await spotifyService.search(searchQuery);
                 console.log(`  📊 Found ${searchResults.length} results`);
 
                 if (searchResults.length > 0) {

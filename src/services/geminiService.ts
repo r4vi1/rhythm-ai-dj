@@ -47,6 +47,52 @@ export const geminiService = {
         }
     },
 
+    generateTrackInsights: async (track: { title: string, artist: string, vibe?: string }): Promise<string> => {
+        if (!model) {
+            return track.vibe || 'No insights available';
+        }
+
+        const prompt = `
+            You are Rhythm, an expert music analyst.
+            Analyze this track and provide a brief, engaging insight (2-3 sentences):
+            
+            Track: "${track.title}" by ${track.artist}
+            ${track.vibe ? `Context: ${track.vibe}` : ''}
+            
+            Describe:
+            - Musical characteristics (genre, mood, energy)
+            - Why it fits the current vibe
+            - What makes it special
+            
+            Keep it conversational and under 60 words. No formatting.
+        `;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text().trim();
+        } catch (error) {
+            console.error("Track insights generation failed:", error);
+            return track.vibe || 'A carefully selected track to enhance your listening experience.';
+        }
+    },
+
+    // Generic content generation
+    generateContent: async (prompt: string): Promise<string> => {
+        if (!model) {
+            throw new Error("Gemini API Key missing");
+        }
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text();
+        } catch (error) {
+            console.error("Gemini generation failed:", error);
+            throw error;
+        }
+    },
+
     generateTransitionParams: async (track1: string, track2: string) => {
         // Future: Ask Gemini how to transition between these two tracks
         // (Crossfade duration, EQ settings, etc.)
