@@ -7,48 +7,76 @@ import { usePlayerStore } from '../stores/usePlayerStore';
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
     const [isFocused, setIsFocused] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const { setCurrentTrack, addToQueue } = usePlayerStore();
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
 
-        // 1. Get Curation from Gemini
-        // Note: In a real app, we'd show a loading state here
-        console.log("Asking Gemini for:", query);
+        setIsLoading(true);
+        console.log("🔍 Starting search for:", query);
 
-        // Fallback to mock if no API key (handled in service, but let's be safe)
-        const curatedSongs = await import('../services/geminiService').then(m => m.geminiService.curatePlaylist(query));
+        try {
+            // 1. Get Curation from Gemini
+            console.log("📡 Asking Gemini for curation...");
+            const curatedSongs = await import('../services/geminiService').then(m => m.geminiService.curatePlaylist(query));
+            console.log("✅ Gemini returned:", curatedSongs);
 
-        if (curatedSongs.length === 0) {
-            // Fallback to mock search if Gemini fails or no key
-            const results = await mockApi.search(query);
-            if (results.length > 0) {
-                setCurrentTrack(results[0]);
+            if (curatedSongs.length === 0) {
+                console.warn("⚠️ Gemini returned empty, falling back to mock");
+                // Fallback to mock search if Gemini fails or no key
+                const results = await mockApi.search(query);
+                if (results.length > 0) {
+                    setCurrentTrack(results[0]);
+                }
+                setIsLoading(false);
+                return;
             }
-            return;
-        }
 
-        // 2. Search YouTube for each curated song
-        // We'll just play the first one and queue the rest
-        const youtubeService = await import('../services/youtubeService').then(m => m.youtubeService);
+            // 2. Search YouTube for each curated song
+            console.log("🎵 Searching YouTube for curated songs...");
+            const youtubeService = await import('../services/youtubeService').then(m => m.youtubeService);
 
-        let firstTrackFound = false;
+            let firstTrackFound = false;
 
-        for (const song of curatedSongs) {
-            const searchResults = await youtubeService.search(`${song.title} ${song.artist} audio`);
-            if (searchResults.length > 0) {
-                const track = searchResults[0];
-                // Add metadata from Gemini
-                track.vibe = song.reason;
+            for (const song of curatedSongs) {
+                const searchQuery = `${song.title} ${song.artist} audio`;
+                console.log(`  🔎 Searching YouTube for: ${searchQuery}`);
 
-                if (!firstTrackFound) {
-                    setCurrentTrack(track);
-                    firstTrackFound = true;
-                } else {
-                    addToQueue(track);
+                const searchResults = await youtubeService.search(searchQuery);
+                console.log(`  📊 Found ${searchResults.length} results`);
+
+                if (searchResults.length > 0) {
+                    const track = searchResults[0];
+                    // Add metadata from Gemini
+                    track.vibe = song.reason;
+
+                    console.log(`  ✓ Track: ${track.title} by ${track.artist}`);
+
+                    if (!firstTrackFound) {
+                        console.log("  ▶️ Playing first track");
+                        setCurrentTrack(track);
+                        firstTrackFound = true;
+                    } else {
+                        console.log("  ➕ Adding to queue");
+                        addToQueue(track);
+                    }
                 }
             }
+
+            if (!firstTrackFound) {
+                console.error("❌ No tracks found on YouTube");
+                alert("No tracks found. Please try a different search.");
+            } else {
+                console.log("✅ Playlist generated successfully!");
+            }
+
+        } catch (error) {
+            console.error("❌ Search failed:", error);
+            alert(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -99,9 +127,14 @@ export const SearchBar: React.FC = () => {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.8 }}
                                     type="submit"
-                                    className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors"
+                                    disabled={isLoading}
+                                    className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <ArrowRight className="w-5 h-5" />
+                                    {isLoading ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <ArrowRight className="w-5 h-5" />
+                                    )}
                                 </motion.button>
                             )}
                         </AnimatePresence>

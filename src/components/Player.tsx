@@ -2,23 +2,40 @@ import React, { useEffect } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Volume2 } from 'lucide-react';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { audioEngine } from '../services/audioEngine';
+import { youtubePlayer } from '../services/youtubePlayer';
 import { MagneticButton } from './MagneticButton';
 
 export const Player: React.FC = () => {
     const { isPlaying, currentTrack, volume, setIsPlaying } = usePlayerStore();
 
     useEffect(() => {
-        if (currentTrack) audioEngine.playTrack(currentTrack.audioUrl);
+        if (currentTrack) {
+            // Check if it's a YouTube URL
+            if (currentTrack.audioUrl.includes('youtube')) {
+                youtubePlayer.play(currentTrack);
+            } else {
+                audioEngine.play(currentTrack.audioUrl);
+            }
+        }
     }, [currentTrack]);
 
     useEffect(() => {
-        if (isPlaying) audioEngine.resume();
-        else audioEngine.pause();
-    }, [isPlaying]);
+        if (currentTrack?.audioUrl.includes('youtube')) {
+            if (isPlaying) youtubePlayer.resume();
+            else youtubePlayer.pause();
+        } else {
+            if (isPlaying) audioEngine.resume();
+            else audioEngine.pause();
+        }
+    }, [isPlaying, currentTrack]);
 
     useEffect(() => {
-        audioEngine.setVolume(volume);
-    }, [volume]);
+        if (currentTrack?.audioUrl.includes('youtube')) {
+            youtubePlayer.setVolume(volume);
+        } else {
+            audioEngine.setVolume(volume);
+        }
+    }, [volume, currentTrack]);
 
     if (!currentTrack) return null;
 

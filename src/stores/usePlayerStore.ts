@@ -38,8 +38,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     queue: [],
 
     setIsPlaying: (isPlaying) => {
-        if (isPlaying) transitionEngine.resume();
-        else transitionEngine.pause();
         set({ isPlaying });
     },
 

@@ -1,4 +1,4 @@
-import { Track } from '../stores/usePlayerStore';
+import type { Track } from '../stores/usePlayerStore';
 import { authService } from './authService';
 
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
@@ -131,7 +131,9 @@ function mapYouTubeItemToTrack(item: any): Track {
         title: snippet.title,
         artist: snippet.channelTitle,
         coverUrl: snippet.thumbnails.high?.url || snippet.thumbnails.default?.url,
-        audioUrl: '', // Still need a strategy for this
+        // Use YouTube nocookie embed URL for audio playback
+        // This works with HTML5 video/audio elements and allows programmatic control
+        audioUrl: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&enablejsapi=1`,
         duration: 0, // Placeholder, needs detail fetch
         vibe: 'Unknown'
     };

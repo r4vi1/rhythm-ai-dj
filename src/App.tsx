@@ -6,6 +6,7 @@ import { SearchBar } from './components/SearchBar';
 import { TrackGrid } from './components/TrackGrid';
 import { Player } from './components/Player';
 import { LoginPage } from './components/LoginPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { authService } from './services/authService';
 
 function App() {
@@ -37,7 +38,9 @@ function App() {
 
       <TrackGrid />
 
-      <Player />
+      <ErrorBoundary>
+        <Player />
+      </ErrorBoundary>
     </Layout>
   );
 }

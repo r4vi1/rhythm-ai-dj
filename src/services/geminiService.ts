@@ -7,7 +7,9 @@ let model: any = null;
 
 if (GEMINI_API_KEY) {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Using Flash for speed, or Pro for quality
+    // Use gemini-2.5-flash - current stable model from official docs (ai.google.dev)
+    // Best price-performance for large-scale processing and JSON generation
+    model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 }
 
 export const geminiService = {
