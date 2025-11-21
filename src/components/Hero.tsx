@@ -52,6 +52,7 @@ export const Hero: React.FC = () => {
 
 
 
+
                     <motion.p
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}

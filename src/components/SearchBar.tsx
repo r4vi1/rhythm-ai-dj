@@ -166,6 +166,8 @@ export const SearchBar: React.FC = () => {
                     </motion.button>
                 ))}
             </div>
+
+
         </div>
     );
 };

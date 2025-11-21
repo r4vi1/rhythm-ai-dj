@@ -1,5 +1,6 @@
 import { spotifyAuthService } from './authService';
 import { usePlayerStore } from '../stores/usePlayerStore';
+import { transitionEngine } from './transitionEngine';
 
 declare global {
     interface Window {
@@ -13,6 +14,7 @@ class SpotifyPlaybackService {
     private deviceId: string | null = null;
     private isReady = false;
     private hasTriggeredTransition = false;
+    private hasTriggeredPreparation = false;
 
     async initialize() {
         if (this.isReady) return true;
@@ -97,11 +99,29 @@ class SpotifyPlaybackService {
                     usePlayerStore.getState().setIsPlaying(!paused);
                     usePlayerStore.getState().setProgress(position / 1000);
 
-                    // Detect Pre-End for Transition (15s before end)
-                    // We trigger this early to allow the transition engine to mix out
+                    // Detect Pre-Calculation (45s before end)
+                    // Pre-calculate transition plan to enable smooth mixing
                     const { duration } = state;
-                    if (duration > 0 && duration - position < 15000 && !this.hasTriggeredTransition) {
-                        console.log('🔄 Pre-end detected (15s left), triggering intelligent transition...');
+                    if (duration > 0 && duration - position < 45000 && !this.hasTriggeredPreparation) {
+                        console.log('🔮 Pre-calculating transition (45s left)...');
+                        this.hasTriggeredPreparation = true;
+
+                        // Get next track from queue
+                        const { currentTrack, queue } = usePlayerStore.getState();
+                        if (currentTrack) {
+                            const currentIndex = queue.findIndex(t => t.id === currentTrack.id);
+                            const nextTrack = queue[currentIndex + 1];
+
+                            if (nextTrack) {
+                                transitionEngine.prepareTransition(currentTrack, nextTrack);
+                            }
+                        }
+                    }
+
+                    // Detect Pre-End for Transition (use plan's mixInPoint or default 20s)
+                    // This ensures transition starts BEFORE track ends, not after
+                    if (duration > 0 && duration - position < 20000 && !this.hasTriggeredTransition) {
+                        console.log('🔄 Pre-end detected (20s left), triggering intelligent transition...');
                         this.hasTriggeredTransition = true;
                         usePlayerStore.getState().handleTrackEnd();
                     }
@@ -140,6 +160,24 @@ class SpotifyPlaybackService {
             }
             // Wait a bit for the device to be fully registered
             await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Only refresh token if it's expired or expiring soon (within 5 minutes)
+        const now = Date.now();
+        const tokenExpiresAt = spotifyAuthService.tokenExpiration;
+        const fiveMinutes = 5 * 60 * 1000;
+
+        if (tokenExpiresAt && (now + fiveMinutes) < tokenExpiresAt) {
+            // Token is still valid, no need to refresh
+            console.log('✅ Token still valid, skipping refresh');
+        } else {
+            // Token expired or expiring soon, refresh it
+            console.log('🔄 Token expired or expiring, refreshing...');
+            const refreshSuccess = await spotifyAuthService.refreshAccessToken();
+            if (!refreshSuccess) {
+                console.error('❌ Token refresh failed');
+                throw new Error('Token refresh failed');
+            }
         }
 
         const token = spotifyAuthService.getAccessToken();

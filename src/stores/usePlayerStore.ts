@@ -108,7 +108,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             const nextTrack = queue[currentIndex + 1];
             if (currentTrack) {
                 // Auto-play = Intelligent Transition (AutoMix)
-                transitionEngine.intelligentTransition(currentTrack, nextTrack);
+                transitionEngine.executeTransition(nextTrack);
             } else {
                 get().setCurrentTrack(nextTrack);
             }

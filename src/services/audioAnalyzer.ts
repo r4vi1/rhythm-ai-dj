@@ -34,47 +34,27 @@ class AudioAnalyzerService {
     }
 
     private async analyzeWithGemini(track: Track): Promise<TrackAnalysis> {
-        const prompt = `You are an expert music analyst with 20 years of DJ experience.
-
-Analyze this track for DJ mixing:
-Title: "${track.title}"
-Artist: ${track.artist}
-Genre hint: ${track.vibe || 'Unknown'}
-
-Provide ACCURATE analysis in this EXACT JSON format:
-{
-  "bpm": <estimated tempo 60-180>,
-  "key": "<musical key in Camelot wheel notation, e.g., 8A, 5B>",
-  "energy": <0-1 scale, where 0.1=ambient, 0.5=moderate, 0.9=high energy>,
-  "genre": "<primary genre: House/Techno/Hip-Hop/Pop/Rock/etc>",
-  "mood": "<emotional tone: energetic/melancholic/uplifting/dark/etc>",
-  "structure": {
-    "intro": <seconds of intro before main beat. 0 if starts immediately.>,
-    "outro": <seconds of outro/fade section. 0 if sudden end.>,
-    "drop": <seconds into track where main drop/chorus hits>,
-    "hasFadeOut": <boolean, true if track fades out volume at end>,
-    "startsWithBeat": <boolean, true if track starts with a kick/drum beat>
-  }
-}
-
-Be accurate - DJs rely on this for beat matching and harmonic mixing.`;
-
         try {
-            const result = await geminiService.generateContent(prompt);
-            const jsonStr = result.replace(/```json/g, '').replace(/```/g, '').trim();
-            const analysis: TrackAnalysis = JSON.parse(jsonStr);
+            // Use the new advanced AI analysis method
+            const result = await geminiService.analyzeTrackAdvanced({
+                title: track.title,
+                artist: track.artist,
+                vibe: track.vibe
+            });
 
-            // Validate and sanitize
+            // Map to our TrackAnalysis format (structures match)
             return {
-                bpm: Math.max(60, Math.min(180, analysis.bpm)),
-                key: analysis.key || '8A',
-                energy: Math.max(0, Math.min(1, analysis.energy)),
-                genre: analysis.genre || 'Unknown',
-                mood: analysis.mood || 'neutral',
+                bpm: Math.max(60, Math.min(180, result.bpm)),
+                key: result.key || '8A',
+                energy: Math.max(0, Math.min(1, result.energy)),
+                genre: result.genre || 'Unknown',
+                mood: result.genre, // Use genre as mood fallback
                 structure: {
-                    intro: Math.max(0, analysis.structure?.intro || 16),
-                    outro: Math.max(0, analysis.structure?.outro || 16),
-                    drop: Math.max(0, analysis.structure?.drop || 60)
+                    intro: Math.max(0, result.structure?.intro || 8),
+                    outro: Math.max(0, result.structure?.outro || 16),
+                    drop: Math.max(0, result.structure?.drop || 32),
+                    hasFadeOut: result.structure?.outro > 8, // Infer from outro length
+                    startsWithBeat: result.structure?.intro < 4 // If intro < 4s, likely starts with beat
                 }
             };
         } catch (error) {
@@ -87,9 +67,11 @@ Be accurate - DJs rely on this for beat matching and harmonic mixing.`;
                 genre: 'Unknown',
                 mood: 'neutral',
                 structure: {
-                    intro: 16,
+                    intro: 8,
                     outro: 16,
-                    drop: 60
+                    drop: 32,
+                    hasFadeOut: false,
+                    startsWithBeat: true
                 }
             };
         }

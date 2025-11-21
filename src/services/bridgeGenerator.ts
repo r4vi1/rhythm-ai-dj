@@ -77,7 +77,11 @@ class EnhancedBridgeGenerator {
     }
 
     public generateFrom(plan: TransitionPlan, fromBpm: number, toBpm: number) {
+        // CRITICAL: Must stop and cancel Transport to prevent timing conflicts
         if (this.isPlaying) this.stop();
+
+        // Cancel all scheduled events on Transport timeline
+        Tone.Transport.cancel();
 
         // Start with current BPM for instant match
         Tone.Transport.bpm.value = fromBpm;
@@ -89,12 +93,7 @@ class EnhancedBridgeGenerator {
         if (plan.generatedElements.kick) this.addKickPattern();
         if (plan.generatedElements.snare) this.addSnarePattern();
         if (plan.generatedElements.hihat) this.addHiHatPattern();
-        // Bass is usually good for continuity, but let's respect the synth/pad suggestion or add a specific bass flag later.
-        // For now, let's assume 'synth' covers melodic elements including bass, or we can add a bass flag to the plan.
-        // The plan has 'synth', let's use that for bass for now, or just always add bass if it's a high energy transition?
-        // Let's stick to the plan structure. The plan has 'kick', 'snare', 'hihat', 'synth', 'riser'.
-        // I'll map 'synth' to bass for now as it's a mono synth.
-        if (plan.generatedElements.synth) this.addBassPattern();
+        if (plan.generatedElements.bass) this.addBassPattern();
 
         if (plan.generatedElements.riser) {
             this.addRiser(plan.duration);
@@ -190,29 +189,47 @@ class EnhancedBridgeGenerator {
     public stop() {
         if (!this.isPlaying) return;
 
+        // Stop loops
         this.loops.forEach(loop => {
             loop.stop();
             loop.dispose();
         });
         this.loops = [];
 
+        // Stop riser
         if (this.riser) {
             this.riser.triggerRelease();
             this.riser = null;
         }
+
+        // CRITICAL: Proper Transport cleanup sequence
+        // 1. Stop Transport (halts clock)
+        Tone.Transport.stop();
+        // 2. Wait for stop to complete, then cancel all scheduled events
+        // Must be done in this order to prevent timing conflicts
+        setTimeout(() => {
+            Tone.Transport.cancel();
+        }, 50);
 
         this.isPlaying = false;
     }
 
     public setVolume(value: number) {
         const db = Tone.gainToDb(value);
-        // Master volume control for all instruments
-        // We can't easily group them without a master bus in this simple setup,
-        // so we adjust individually relative to their mix
         this.kick.volume.rampTo(db - 6, 0.1);
         this.snare.volume.rampTo(db - 10, 0.1);
         this.hihat.volume.rampTo(db - 12 + (this.intensity * 6), 0.1);
         this.bass.volume.rampTo(db - 10, 0.1);
+    }
+
+    public fadeTo(targetVolume: number, durationMs: number) {
+        const db = Tone.gainToDb(targetVolume);
+        const durationSec = durationMs / 1000;
+
+        this.kick.volume.rampTo(db - 6, durationSec);
+        this.snare.volume.rampTo(db - 10, durationSec);
+        this.hihat.volume.rampTo(db - 12 + (this.intensity * 6), durationSec);
+        this.bass.volume.rampTo(db - 10, durationSec);
     }
 }
 

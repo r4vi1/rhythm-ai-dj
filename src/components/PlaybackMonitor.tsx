@@ -4,7 +4,7 @@ import { transitionEngine } from '../services/transitionEngine';
 import { audioAnalyzer } from '../services/audioAnalyzer';
 
 export const PlaybackMonitor: React.FC = () => {
-    const { isPlaying, currentTrack, nextTrack, progress, duration } = usePlayerStore();
+    const { isPlaying, currentTrack, queue, progress } = usePlayerStore();
     const hasTriggeredTransition = useRef(false);
     const lastTrackId = useRef<string | null>(null);
 
@@ -17,9 +17,15 @@ export const PlaybackMonitor: React.FC = () => {
     }, [currentTrack]);
 
     useEffect(() => {
-        if (!isPlaying || !currentTrack || !nextTrack || hasTriggeredTransition.current) return;
+        if (!isPlaying || !currentTrack || hasTriggeredTransition.current) return;
 
         const checkAutoTransition = async () => {
+            // Compute next track from queue
+            const currentIndex = queue.findIndex(t => t.id === currentTrack.id);
+            const nextTrack = queue[currentIndex + 1];
+
+            if (!nextTrack) return; // No next track
+
             // Default transition window (10s before end)
             let transitionWindow = 10;
 
@@ -30,21 +36,23 @@ export const PlaybackMonitor: React.FC = () => {
                 transitionWindow = Math.max(8, analysis.structure.outro / 2);
             }
 
-            const remaining = duration - progress;
+            // Estimate duration from progress if needed (tracks usually 3-4 mins)
+            // For more accuracy, would need Spotify SDK duration info
+            const estimatedDuration = 200; // Fallback: 3:20
+            const remaining = estimatedDuration - progress;
 
             if (remaining > 0 && remaining <= transitionWindow) {
                 console.log(`🤖 Auto-Triggering Transition: ${remaining.toFixed(1)}s remaining`);
                 hasTriggeredTransition.current = true;
-                transitionEngine.intelligentTransition(currentTrack, nextTrack);
+                transitionEngine.executeTransition(nextTrack);
             }
         };
 
         // Check every 1s (sufficient for 10s window)
-        // For tighter loops, we'd use requestAnimationFrame, but 1s is fine for triggering a 10s transition
         const interval = setInterval(checkAutoTransition, 1000);
 
         return () => clearInterval(interval);
-    }, [isPlaying, currentTrack, nextTrack, progress, duration]);
+    }, [isPlaying, currentTrack, queue, progress]);
 
     return null; // Headless component
 };
