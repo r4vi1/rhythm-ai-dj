@@ -7,9 +7,15 @@ let model: any = null;
 
 if (GEMINI_API_KEY) {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // Use gemini-2.5-flash - current stable model from official docs (ai.google.dev)
-    // Best price-performance for large-scale processing and JSON generation
-    model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Primary: gemini-2.5-flash (GA June 2025, most cost-effective)
+    // Fallback: gemini-2.0-flash-001 (GA Feb 2025, very stable)
+    // Try 2.5 first, fall back to 2.0 on 503 errors
+    try {
+        model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-001" });
+    } catch (e) {
+        console.warn("Model initialization failed, using fallback");
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    }
 }
 
 export const geminiService = {

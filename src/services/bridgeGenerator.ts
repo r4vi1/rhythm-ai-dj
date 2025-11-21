@@ -85,11 +85,16 @@ class EnhancedBridgeGenerator {
         // Ramp to target BPM over the duration
         Tone.Transport.bpm.rampTo(toBpm, plan.duration);
 
-        // Add driving elements
-        this.addKickPattern();
-        this.addSnarePattern();
-        this.addHiHatPattern();
-        this.addBassPattern();
+        // Add driving elements based on plan
+        if (plan.generatedElements.kick) this.addKickPattern();
+        if (plan.generatedElements.snare) this.addSnarePattern();
+        if (plan.generatedElements.hihat) this.addHiHatPattern();
+        // Bass is usually good for continuity, but let's respect the synth/pad suggestion or add a specific bass flag later.
+        // For now, let's assume 'synth' covers melodic elements including bass, or we can add a bass flag to the plan.
+        // The plan has 'synth', let's use that for bass for now, or just always add bass if it's a high energy transition?
+        // Let's stick to the plan structure. The plan has 'kick', 'snare', 'hihat', 'synth', 'riser'.
+        // I'll map 'synth' to bass for now as it's a mono synth.
+        if (plan.generatedElements.synth) this.addBassPattern();
 
         if (plan.generatedElements.riser) {
             this.addRiser(plan.duration);

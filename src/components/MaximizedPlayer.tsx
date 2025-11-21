@@ -7,6 +7,8 @@ import { youtubePlayer } from '../services/youtubePlayer';
 import { audioEngine } from '../services/audioEngine';
 import { geminiService } from '../services/geminiService';
 import { QueuePanel } from './QueuePanel';
+import { MarqueeText } from './MarqueeText';
+import { spotifyPlayback } from '../services/spotifyPlayback';
 
 export const MaximizedPlayer: React.FC = () => {
     const {
@@ -21,7 +23,10 @@ export const MaximizedPlayer: React.FC = () => {
         prevTrack,
         toggleShuffle,
         toggleMaximized,
-        shuffleQueue
+        shuffleQueue,
+        insightsCache,
+        cacheInsight,
+        setProgress
     } = usePlayerStore();
 
     const [showQueue, setShowQueue] = useState(false);
@@ -30,14 +35,30 @@ export const MaximizedPlayer: React.FC = () => {
     // Dynamic Color Extraction
     const dominantColor = useDominantColor(currentTrack?.coverUrl);
 
+    // Progress Update Interval
+    useEffect(() => {
+        let interval: any;
+        if (isPlaying && currentTrack) {
+            interval = setInterval(() => {
+                setProgress(usePlayerStore.getState().progress + 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [isPlaying, currentTrack, setProgress]);
+
     useEffect(() => {
         if (currentTrack) {
-            setAiInsight('Analyzing track...');
-            geminiService.generateTrackInsights(currentTrack).then(insight => {
-                setAiInsight(insight);
-            });
+            if (insightsCache[currentTrack.id]) {
+                setAiInsight(insightsCache[currentTrack.id]);
+            } else {
+                setAiInsight('Analyzing track...');
+                geminiService.generateTrackInsights(currentTrack).then(insight => {
+                    setAiInsight(insight);
+                    cacheInsight(currentTrack.id, insight);
+                });
+            }
         }
-    }, [currentTrack]);
+    }, [currentTrack, insightsCache, cacheInsight]);
 
     if (!currentTrack) return null;
 
@@ -101,19 +122,31 @@ export const MaximizedPlayer: React.FC = () => {
                     {/* Track Details */}
                     <div className="flex-1 min-w-0 text-center md:text-left w-full">
                         <p className="text-xs uppercase tracking-[0.3em] mb-4 font-medium transition-colors duration-500" style={{ color: dominantColor }}>Now Playing</p>
-                        <h1 className="font-display text-4xl md:text-7xl uppercase tracking-tighter text-white mb-4 truncate leading-none">
-                            {currentTrack.title}
+                        <h1 className="font-display text-4xl md:text-7xl uppercase tracking-tighter text-white mb-4 leading-none">
+                            <MarqueeText text={currentTrack.title} speed={50} delay={3} />
                         </h1>
-                        <p className="text-xl md:text-2xl text-white/50 uppercase tracking-widest truncate font-light">
-                            {currentTrack.artist}
+                        <p className="text-xl md:text-2xl text-white/50 uppercase tracking-widest font-light">
+                            <MarqueeText text={currentTrack.artist} speed={40} delay={3} />
                         </p>
 
                         {/* Progress Bar */}
                         <div className="mt-8 md:mt-12">
-                            <div className="h-1 bg-white/5 rounded-full overflow-hidden mb-4 cursor-pointer group">
+                            <div
+                                className="relative h-1 bg-white/5 rounded-full overflow-visible mb-4 cursor-pointer group"
+                                onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const percent = (e.clientX - rect.left) / rect.width;
+                                    const seekTime = percent * (currentTrack.duration || 0);
+                                    spotifyPlayback.seek(seekTime * 1000);
+                                }}
+                            >
                                 <div
-                                    className="h-full shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all ease-linear group-hover:h-full"
+                                    className="h-full shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all group-hover:h-1.5 rounded-full"
                                     style={{ width: `${progressPercent}%`, backgroundColor: dominantColor }}
+                                />
+                                <div
+                                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    style={{ left: `${progressPercent}%`, backgroundColor: dominantColor, transform: 'translate(-50%, -50%)' }}
                                 />
                             </div>
                             <div className="flex justify-between text-xs font-mono text-white/30 tracking-widest">
@@ -200,9 +233,9 @@ export const MaximizedPlayer: React.FC = () => {
                         <div className="block">
                             <div className="flex items-center justify-center md:justify-end gap-2 mb-1">
                                 <div className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: dominantColor }} />
-                                <h3 className="text-[10px] uppercase tracking-[0.2em] text-white/40">AI Insight</h3>
+                                <h3 className="text-[10px] uppercase tracking-[0.2em] text-white/40">Track Insights</h3>
                             </div>
-                            <p className="text-sm text-white/60 max-w-md line-clamp-2 md:line-clamp-1 text-center md:text-right">
+                            <p className="text-sm text-white/60 max-w-md text-center md:text-right leading-relaxed">
                                 {aiInsight}
                             </p>
                         </div>

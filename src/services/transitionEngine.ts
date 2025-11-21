@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { bridgeGenerator } from './bridgeGenerator';
+import { transitionPlanner } from './transitionPlanner';
 import type { TransitionPlan } from './transitionPlanner';
 import type { Track } from '../stores/usePlayerStore';
 import { audioAnalyzer } from './audioAnalyzer';
@@ -24,57 +25,49 @@ class TransitionEngine {
         if (this.isTransitioning) return;
 
         this.isTransitioning = true;
-        console.log('🎛️ Starting AGGRESSIVE BRIDGE transition...');
+        console.log('🎛️ Starting INTELLIGENT transition...');
 
         try {
-            // 1. INSTANT START: Start Bridge IMMEDIATELY
-            // We don't wait for analysis. We use current track's BPM if known, or default.
-            // We'll try to get a quick read from cache or default to 128 (House)
-            const currentAnalysis = await audioAnalyzer.analyzeTrack(currentTrack); // Should be cached
-            const startBpm = currentAnalysis ? currentAnalysis.bpm : 128;
+            // 1. Analyze Both Tracks
+            const [currentAnalysis, nextAnalysis] = await Promise.all([
+                audioAnalyzer.analyzeTrack(currentTrack),
+                audioAnalyzer.analyzeTrack(nextTrack)
+            ]);
 
-            console.log(`  🚀 INSTANT START at ${startBpm} BPM`);
+            // 2. Generate Transition Plan
+            const plan = await transitionPlanner.plan(currentAnalysis, nextAnalysis);
+            console.log('📋 Transition Plan:', plan);
 
             await Tone.start();
-            // Start bridge with full energy
-            bridgeGenerator.generateFrom({
-                duration: 4, // 4 bars default
-                technique: 'bridge',
-                bpmAdjustment: false,
-                eqCurve: { low: 'swap', mid: 'neutral', high: 'neutral' },
-                generatedElements: { kick: true, snare: true, hihat: true, synth: true, riser: true },
-                mixInPoint: 0,
-                mixOutPoint: 0
-            } as TransitionPlan, startBpm, startBpm); // Start at current BPM
 
-            bridgeGenerator.setVolume(0.8); // Full volume immediately
-            bridgeGenerator.setIntensity(0.5); // Start with moderate intensity
+            // 3. Start Bridge (Filler)
+            // Use the plan's suggested elements
+            bridgeGenerator.generateFrom(plan, currentAnalysis.bpm, nextAnalysis.bpm);
 
-            // 2. AGGRESSIVE DUCK: Cut current track volume fast
-            console.log('  📉 Aggressive ducking...');
-            await this.fadeVolume(0.8, 0, 500); // Fast 500ms fade out
+            bridgeGenerator.setVolume(0.8);
+            bridgeGenerator.setIntensity(0.5);
 
-            // 3. Analyze Next Track (while bridge is playing)
-            const nextAnalysis = await audioAnalyzer.analyzeTrack(nextTrack);
-            console.log(`  Next BPM: ${nextAnalysis.bpm}`);
+            // 4. Execute Fade Out (Track 1)
+            console.log(`  📉 Fading out current track over ${plan.duration}s...`);
+            await this.fadeVolume(0.8, 0, plan.duration * 1000);
 
-            // Ramp bridge to next BPM
+            // 5. Ramp Bridge to Next BPM
             Tone.Transport.bpm.rampTo(nextAnalysis.bpm, 2);
-            bridgeGenerator.setIntensity(1.0); // Ramp up intensity
+            bridgeGenerator.setIntensity(1.0);
 
-            // 4. Switch Track
+            // 6. Switch Track
             console.log('  🔄 Switching Spotify track...');
             await spotifyPlayback.play(nextTrack.audioUrl);
             usePlayerStore.getState().setCurrentTrack(nextTrack);
 
-            // 5. Wait for Buffering (Bridge is driving the party)
+            // 7. Wait for Buffering
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            // 6. Fade In Next Track
-            console.log('  📈 Fading in next track...');
-            await this.fadeVolume(0, 0.8, 1000); // Fast fade in
+            // 8. Fade In Next Track
+            console.log(`  📈 Fading in next track over ${plan.duration}s...`);
+            await this.fadeVolume(0, 0.8, plan.duration * 1000);
 
-            // 7. Stop Bridge
+            // 9. Stop Bridge
             console.log('  🛑 Stopping bridge...');
             bridgeGenerator.stop();
 

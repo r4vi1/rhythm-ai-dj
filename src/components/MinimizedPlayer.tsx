@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { youtubePlayer } from '../services/youtubePlayer';
 import { audioEngine } from '../services/audioEngine';
+import { MarqueeText } from './MarqueeText';
+import { spotifyPlayback } from '../services/spotifyPlayback';
 
 export const MinimizedPlayer: React.FC = () => {
     const { isPlaying, currentTrack, progress, setIsPlaying, nextTrack, toggleMaximized } = usePlayerStore();
@@ -33,9 +35,17 @@ export const MinimizedPlayer: React.FC = () => {
         >
             <div className="max-w-3xl mx-auto bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 rounded-full overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                 {/* Progress Bar - Top (Integrated) */}
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5">
+                <div
+                    className="absolute top-0 left-0 right-0 h-[2px] bg-white/5 cursor-pointer group z-10"
+                    onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const percent = (e.clientX - rect.left) / rect.width;
+                        const seekTime = percent * (currentTrack.duration || 0);
+                        spotifyPlayback.seek(seekTime * 1000);
+                    }}
+                >
                     <div
-                        className="h-full bg-primary shadow-[0_0_10px_rgba(225,29,72,0.8)] transition-all duration-300 ease-linear"
+                        className="h-full bg-primary shadow-[0_0_10px_rgba(225,29,72,0.8)] transition-all group-hover:h-1"
                         style={{ width: `${progressPercent}%` }}
                     />
                 </div>
@@ -60,11 +70,11 @@ export const MinimizedPlayer: React.FC = () => {
                         </div>
 
                         <div className="flex-1 min-w-0">
-                            <h4 className="font-display text-sm uppercase tracking-wider text-white truncate group-hover:text-primary transition-colors">
-                                {currentTrack.title}
+                            <h4 className="font-display text-sm uppercase tracking-wider text-white group-hover:text-primary transition-colors">
+                                <MarqueeText text={currentTrack.title} speed={40} delay={2} />
                             </h4>
-                            <p className="text-xs text-white/40 uppercase tracking-widest truncate">
-                                {currentTrack.artist}
+                            <p className="text-xs text-white/40 uppercase tracking-widest">
+                                <MarqueeText text={currentTrack.artist} speed={30} delay={2} />
                             </p>
                         </div>
                     </button>

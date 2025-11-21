@@ -12,6 +12,7 @@ class SpotifyPlaybackService {
     private player: any = null;
     private deviceId: string | null = null;
     private isReady = false;
+    private hasTriggeredTransition = false;
 
     async initialize() {
         if (this.isReady) return true;
@@ -76,12 +77,34 @@ class SpotifyPlaybackService {
                 });
 
                 // Player state changed
+                let previousState: any = null;
+
                 this.player.addListener('player_state_changed', (state: any) => {
                     if (!state) return;
 
                     const { paused, position } = state;
+
+                    // Detect Track End
+                    // If we were playing, and now we are paused at position 0, the track likely ended
+                    // Added check for previousState.position > 0 to ensure we actually played something
+                    if (previousState && !previousState.paused && paused && position === 0 && previousState.position > 0) {
+                        console.log('🎵 Track finished, triggering auto-next...');
+                        usePlayerStore.getState().handleTrackEnd();
+                    }
+
+                    previousState = state;
+
                     usePlayerStore.getState().setIsPlaying(!paused);
                     usePlayerStore.getState().setProgress(position / 1000);
+
+                    // Detect Pre-End for Transition (15s before end)
+                    // We trigger this early to allow the transition engine to mix out
+                    const { duration } = state;
+                    if (duration > 0 && duration - position < 15000 && !this.hasTriggeredTransition) {
+                        console.log('🔄 Pre-end detected (15s left), triggering intelligent transition...');
+                        this.hasTriggeredTransition = true;
+                        usePlayerStore.getState().handleTrackEnd();
+                    }
                 });
 
                 // Connect to the player
@@ -108,6 +131,7 @@ class SpotifyPlaybackService {
     }
 
     async play(trackUri: string) {
+        // Ensure player is ready
         if (!this.isReady || !this.deviceId) {
             console.log('⚠️ Player not ready, initializing...');
             const initialized = await this.initialize();
@@ -122,6 +146,8 @@ class SpotifyPlaybackService {
         if (!token) throw new Error('Not authenticated');
 
         console.log('▶️ Attempting to play:', trackUri, 'on device:', this.deviceId);
+
+        this.hasTriggeredTransition = false;
 
         const playRequest = async (retries = 3): Promise<void> => {
             try {
@@ -144,6 +170,7 @@ class SpotifyPlaybackService {
                     }
                     if (retries > 0) {
                         console.log(`🔄 Retrying playback (${retries} attempts left)...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                         return playRequest(retries - 1);
                     }
                 }
@@ -155,6 +182,13 @@ class SpotifyPlaybackService {
                     // If 403, it might be a premium issue or scope issue
                     if (response.status === 403) {
                         throw new Error('Spotify Premium required or playback restricted');
+                    }
+
+                    // If 401, token might be expired
+                    if (response.status === 401) {
+                        console.warn('⚠️ Token expired, refreshing...');
+                        await spotifyAuthService.refreshAccessToken();
+                        if (retries > 0) return playRequest(retries - 1);
                     }
 
                     throw new Error(`Playback failed: ${response.status}`);

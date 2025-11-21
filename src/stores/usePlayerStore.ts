@@ -30,11 +30,15 @@ interface PlayerState {
     addToQueue: (track: Track) => void;
     playTrack: (track: Track) => void;
     nextTrack: () => void;
+    handleTrackEnd: () => void;
     prevTrack: () => void;
     shuffleQueue: () => void;
     reorderQueue: (fromIndex: number, toIndex: number) => void;
     removeFromQueue: (index: number) => void;
     clearQueue: () => void;
+
+    insightsCache: Record<string, string>;
+    cacheInsight: (trackId: string, insight: string) => void;
 }
 
 import { transitionEngine } from '../services/transitionEngine';
@@ -92,9 +96,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const { queue, currentTrack } = get();
         const currentIndex = queue.findIndex(t => t.id === currentTrack?.id);
         if (currentIndex < queue.length - 1) {
+            // Manual click = Instant Skip (like Apple Music)
+            get().setCurrentTrack(queue[currentIndex + 1]);
+        }
+    },
+
+    handleTrackEnd: () => {
+        const { queue, currentTrack } = get();
+        const currentIndex = queue.findIndex(t => t.id === currentTrack?.id);
+        if (currentIndex < queue.length - 1) {
             const nextTrack = queue[currentIndex + 1];
             if (currentTrack) {
-                // Trigger intelligent transition
+                // Auto-play = Intelligent Transition (AutoMix)
                 transitionEngine.intelligentTransition(currentTrack, nextTrack);
             } else {
                 get().setCurrentTrack(nextTrack);
@@ -136,5 +149,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }));
     },
 
-    clearQueue: () => set({ queue: [] })
+    clearQueue: () => set({ queue: [] }),
+
+    insightsCache: {},
+    cacheInsight: (trackId, insight) => set((state) => ({
+        insightsCache: { ...state.insightsCache, [trackId]: insight }
+    }))
 }));
