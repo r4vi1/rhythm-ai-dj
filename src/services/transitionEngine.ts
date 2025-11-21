@@ -1,4 +1,3 @@
-import * as Tone from 'tone';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { bridgeGenerator } from './bridgeGenerator';
 import { transitionPlanner } from './transitionPlanner';
@@ -6,6 +5,7 @@ import type { TransitionPlan } from './transitionPlanner';
 import type { Track } from '../stores/usePlayerStore';
 import { audioAnalyzer } from './audioAnalyzer';
 import { spotifyPlayback } from './spotifyPlayback';
+import { spotifyAuthService } from './authService';
 
 class TransitionEngine {
     private isTransitioning = false;
@@ -100,7 +100,7 @@ class TransitionEngine {
     public async executeTransition(nextTrack?: Track) {
         if (this.isTransitioning) return;
 
-        console.log(`🎛️  Executing SIMPLE crossfade transition`);
+        console.log(`🎛️  Executing SEQUENTIAL transition`);
 
         // Get target track
         const { currentTrack, queue } = usePlayerStore.getState();
@@ -117,51 +117,40 @@ class TransitionEngine {
             // Update UI to show next track
             usePlayerStore.getState().setCurrentTrack(targetTrack);
 
-            const crossfadeDuration = 8000; // 8 seconds
-            const overlap = 0.5; // Start next track halfway through crossfade
+            const fadeDuration = 3000; // 3 seconds out, 3 seconds in
+            const userVolume = usePlayerStore.getState().volume;
 
-            console.log(`🎵 Starting simple crossfade (${crossfadeDuration / 1000}s)`);
+            // 1. Fade out current track
+            console.log(`  📉 Fading out current track (${fadeDuration / 1000}s)...`);
+            await this.logarithmicFade(userVolume, 0, fadeDuration);
 
-            // Start fading current track out
-            const fadeCurrentOut = this.logarithmicFade(
-                usePlayerStore.getState().volume,
-                0,
-                crossfadeDuration
-            );
+            // 2. Switch track (at 0 volume)
+            console.log('  🔄 Switching track...');
 
-            // Wait for overlap point, then start next track
-            setTimeout(async () => {
-                try {
-                    console.log('  🔄 Loading and fading in next track...');
+            // Only refresh token if needed
+            const now = Date.now();
+            const tokenExpiresAt = spotifyAuthService.tokenExpiration;
+            const fiveMinutes = 5 * 60 * 1000;
 
-                    // Only refresh token if needed
-                    const now = Date.now();
-                    const tokenExpiresAt = spotifyAuthService.tokenExpiration;
-                    const fiveMinutes = 5 * 60 * 1000;
+            if (!tokenExpiresAt || (now + fiveMinutes) >= tokenExpiresAt) {
+                await spotifyAuthService.refreshAccessToken();
+            }
 
-                    if (!tokenExpiresAt || (now + fiveMinutes) >= tokenExpiresAt) {
-                        await spotifyAuthService.refreshAccessToken();
-                    }
+            // Load next track
+            await spotifyPlayback.play(targetTrack.audioUrl);
+            await spotifyPlayback.setVolume(0); // Ensure it starts silent
 
-                    //Load next track
-                    await spotifyPlayback.play(targetTrack.audioUrl);
-                    await spotifyPlayback.setVolume(0);
+            // Small delay to ensure track is loaded/buffering
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-                    // Fade next track in
-                    const fadeTime = crossfadeDuration * (1 - overlap);
-                    await this.logarithmicFade(0, usePlayerStore.getState().volume, fadeTime);
+            // 3. Fade in next track
+            console.log(`  📈 Fading in next track (${fadeDuration / 1000}s)...`);
+            await this.logarithmicFade(0, userVolume, fadeDuration);
 
-                    console.log('✅ Crossfade complete!');
-                } catch (error) {
-                    console.error('❌ Next track load failed:', error);
-                }
-            }, crossfadeDuration * overlap);
-
-            // Wait for current track fade to complete
-            await fadeCurrentOut;
+            console.log('✅ Transition complete!');
 
         } catch (error) {
-            console.error('❌ Crossfade failed:', error);
+            console.error('❌ Transition failed:', error);
         } finally {
             this.isTransitioning = false;
             this.preparedPlan = null;
@@ -205,19 +194,6 @@ class TransitionEngine {
             };
             requestAnimationFrame(animate);
         });
-    }
-
-    /**
-     * Simple crossfade fallback (for errors or when no plan available)
-     */
-    private async simpleCrossfade(nextTrack: Track) {
-        console.log('  ↔️  Simple crossfade (fallback)');
-        const userVolume = usePlayerStore.getState().volume;
-
-        await this.logarithmicFade(userVolume, 0, 1000);
-        await spotifyPlayback.play(nextTrack.audioUrl);
-        usePlayerStore.getState().setCurrentTrack(nextTrack);
-        await this.logarithmicFade(0, userVolume, 1000);
     }
 
     public pause() {
