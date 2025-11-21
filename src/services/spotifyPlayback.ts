@@ -84,7 +84,15 @@ class SpotifyPlaybackService {
                 this.player.addListener('player_state_changed', (state: any) => {
                     if (!state) return;
 
-                    const { paused, position } = state;
+                    const { paused, position, track_window } = state;
+
+                    // Detect TRACK CHANGE (new track started)
+                    // Reset transition flags so next transition can be prepared
+                    if (previousState && track_window?.current_track?.id !== previousState.track_window?.current_track?.id) {
+                        console.log('🎵 New track detected, resetting transition flags');
+                        this.hasTriggeredPreparation = false;
+                        this.hasTriggeredTransition = false;
+                    }
 
                     // Detect Track End
                     // If we were playing, and now we are paused at position 0, the track likely ended
