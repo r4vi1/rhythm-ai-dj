@@ -11,6 +11,7 @@ class TransitionEngine {
     private isTransitioning = false;
     private preparedPlan: TransitionPlan | null = null;
     private preparedNextTrack: Track | null = null;
+    private preparationPromise: Promise<void> | null = null; // Track async preparation
     private instanceId = Math.random().toString(36).substring(7); // Debug: track instance
 
     constructor() {
@@ -47,37 +48,42 @@ class TransitionEngine {
     public async prepareTransition(currentTrack: Track, nextTrack: Track) {
         console.log(`🔮 Pre-calculating transition plan... (instance: ${this.instanceId})`);
 
-        try {
-            // 1. Analyze both tracks
-            const [currentAnalysis, nextAnalysis] = await Promise.all([
-                audioAnalyzer.analyzeTrack(currentTrack),
-                audioAnalyzer.analyzeTrack(nextTrack)
-            ]);
+        // Store the preparation promise so executeTransition can await it
+        this.preparationPromise = (async () => {
+            try {
+                // 1. Analyze both tracks
+                const [currentAnalysis, nextAnalysis] = await Promise.all([
+                    audioAnalyzer.analyzeTrack(currentTrack),
+                    audioAnalyzer.analyzeTrack(nextTrack)
+                ]);
 
-            console.log(`  📊 Current: ${currentAnalysis.bpm} BPM, ${currentAnalysis.key}, Energy ${currentAnalysis.energy}`);
-            console.log(`  📊 Next: ${nextAnalysis.bpm} BPM, ${nextAnalysis.key}, Energy ${nextAnalysis.energy}`);
+                console.log(`  📊 Current: ${currentAnalysis.bpm} BPM, ${currentAnalysis.key}, Energy ${currentAnalysis.energy}`);
+                console.log(`  📊 Next: ${nextAnalysis.bpm} BPM, ${nextAnalysis.key}, Energy ${nextAnalysis.energy}`);
 
-            // 2. Generate transition plan
-            const plan = await transitionPlanner.plan(currentAnalysis, nextAnalysis);
+                // 2. Generate transition plan
+                const plan = await transitionPlanner.plan(currentAnalysis, nextAnalysis);
 
-            console.log(`  📋 Plan: ${plan.duration}s ${plan.technique} transition`);
-            console.log(`  🎚️  Elements: ${Object.entries(plan.generatedElements).filter(([_, v]) => v).map(([k]) => k).join(', ') || 'none'}`);
+                console.log(`  📋 Plan: ${plan.duration}s ${plan.technique} transition`);
+                console.log(`  🎚️  Elements: ${Object.entries(plan.generatedElements).filter(([_, v]) => v).map(([k]) => k).join(', ') || 'none'}`);
 
-            // 3. Store for execution
-            this.preparedPlan = plan;
-            this.preparedNextTrack = nextTrack;
+                // 3. Store for execution
+                this.preparedPlan = plan;
+                this.preparedNextTrack = nextTrack;
 
-            console.log('✅ Transition plan prepared and stored successfully');
-            console.log(`  preparedPlan exists: ${this.preparedPlan !== null}`);
-            console.log(`  preparedNextTrack exists: ${this.preparedNextTrack !== null}`);
-        } catch (error) {
-            console.error('❌ Transition prep failed:', error);
-            console.error('  Error details:', error instanceof Error ? error.message : String(error));
-            console.error('  Stack:', error instanceof Error ? error.stack : 'N/A');
-            // Will fallback to simple play
-            this.preparedPlan = null;
-            this.preparedNextTrack = null;
-        }
+                console.log('✅ Transition plan prepared and stored successfully');
+                console.log(`  preparedPlan exists: ${this.preparedPlan !== null}`);
+                console.log(`  preparedNextTrack exists: ${this.preparedNextTrack !== null}`);
+            } catch (error) {
+                console.error('❌ Transition prep failed:', error);
+                console.error('  Error details:', error instanceof Error ? error.message : String(error));
+                console.error('  Stack:', error instanceof Error ? error.stack : 'N/A');
+                // Will fallback to simple play
+                this.preparedPlan = null;
+                this.preparedNextTrack = null;
+            }
+        })();
+
+        return this.preparationPromise;
     }
 
     /**
@@ -95,6 +101,19 @@ class TransitionEngine {
         if (this.isTransitioning) return;
 
         console.log(`🎛️  executeTransition called (instance: ${this.instanceId})`);
+
+        // CRITICAL: Wait for preparation to complete if it's still running
+        if (this.preparationPromise) {
+            console.log('⏳ Waiting for preparation to complete...');
+            try {
+                await this.preparationPromise;
+                console.log('✅ Preparation complete, proceeding with transition');
+            } catch (error) {
+                console.error('❌ Preparation failed while waiting:', error);
+            }
+            this.preparationPromise = null; // Clear after awaiting
+        }
+
         console.log(`  preparedPlan exists: ${this.preparedPlan !== null}`);
         console.log(`  preparedNextTrack exists: ${this.preparedNextTrack !== null}`);
         console.log(`  nextTrack arg provided: ${nextTrack !== undefined}`);
