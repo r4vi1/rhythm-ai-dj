@@ -100,126 +100,73 @@ class TransitionEngine {
     public async executeTransition(nextTrack?: Track) {
         if (this.isTransitioning) return;
 
-        console.log(`🎛️  executeTransition called (instance: ${this.instanceId})`);
+        console.log(`🎛️  Executing SIMPLE crossfade transition`);
 
-        // CRITICAL: Wait for preparation to complete if it's still running
-        if (this.preparationPromise) {
-            console.log('⏳ Waiting for preparation to complete...');
-            try {
-                await this.preparationPromise;
-                console.log('✅ Preparation complete, proceeding with transition');
-            } catch (error) {
-                console.error('❌ Preparation failed while waiting:', error);
-            }
-            this.preparationPromise = null; // Clear after awaiting
-        }
+        // Get target track
+        const { currentTrack, queue } = usePlayerStore.getState();
+        const targetTrack = nextTrack || (currentTrack ? queue[queue.findIndex(t => t.id === currentTrack.id) + 1] : null);
 
-        console.log(`  preparedPlan exists: ${this.preparedPlan !== null}`);
-        console.log(`  preparedNextTrack exists: ${this.preparedNextTrack !== null}`);
-        console.log(`  nextTrack arg provided: ${nextTrack !== undefined}`);
-
-        // Use prepared plan or fallback
-        const plan = this.preparedPlan;
-        const targetTrack = nextTrack || this.preparedNextTrack;
-
-        if (!plan || !targetTrack) {
-            console.warn('⚠️  No prepared transition, using simple play');
-            if (targetTrack) await this.play(targetTrack);
+        if (!targetTrack) {
+            console.warn('⚠️  No next track available');
             return;
         }
 
         this.isTransitioning = true;
-        console.log(`🎛️  Executing ${plan.technique} transition (${plan.duration}s)`);
-
-        // Update UI immediately to show next track
-        usePlayerStore.getState().setCurrentTrack(targetTrack);
 
         try {
-            // Start Tone.js for bridge generation
-            await Tone.start();
+            // Update UI to show next track
+            usePlayerStore.getState().setCurrentTrack(targetTrack);
 
-            // Calculate phase durations (split total duration into 3 phases)
-            const phaseDuration = plan.duration / 3;
-            const phase1Duration = phaseDuration; // Overlap
-            const phase2Duration = phaseDuration; // Dominance
-            const phase3Duration = phaseDuration; // Handoff
+            const crossfadeDuration = 8000; // 8 seconds
+            const overlap = 0.5; // Start next track halfway through crossfade
 
-            // --- PHASE 1: OVERLAP (Current track ducks, Bridge fades in) ---
-            console.log('  Phase 1: Overlap (Current → 40%, Bridge → 80%)');
+            console.log(`🎵 Starting simple crossfade (${crossfadeDuration / 1000}s)`);
 
-            // Generate bridge with plan's elements
-            if (Object.values(plan.generatedElements).some(v => v)) {
-                const currentAnalysis = await audioAnalyzer.analyzeTrack(usePlayerStore.getState().currentTrack!);
-                const nextAnalysis = await audioAnalyzer.analyzeTrack(targetTrack);
-                bridgeGenerator.generateFrom(plan, currentAnalysis.bpm, nextAnalysis.bpm);
-            }
+            // Start fading current track out
+            const fadeCurrentOut = this.logarithmicFade(
+                usePlayerStore.getState().volume,
+                0,
+                crossfadeDuration
+            );
 
-            // Fade current track: 100% → 40% (logarithmic)
-            const fadeCurrentDown = this.logarithmicFade(1.0, 0.4, phase1Duration * 1000);
+            // Wait for overlap point, then start next track
+            setTimeout(async () => {
+                try {
+                    console.log('  🔄 Loading and fading in next track...');
 
-            // Fade bridge in: 0% → 80%
-            bridgeGenerator.setVolume(0);
-            const fadeBridgeIn = new Promise(resolve => {
-                setTimeout(() => {
-                    bridgeGenerator.setVolume(0.8);
-                    resolve(undefined);
-                }, phase1Duration * 1000);
-            });
+                    // Only refresh token if needed
+                    const now = Date.now();
+                    const tokenExpiresAt = spotifyAuthService.tokenExpiration;
+                    const fiveMinutes = 5 * 60 * 1000;
 
-            await Promise.all([fadeCurrentDown, fadeBridgeIn]);
-
-            // --- PHASE 2: BRIDGE DOMINANCE (Current fades out, Bridge solo) ---
-            console.log('  Phase 2: Dominance (Current → 0%, Bridge @ 80%)');
-
-            // Fade current track: 40% → 0%
-            const fadePhase2 = this.logarithmicFade(0.4, 0, phase2Duration * 1000);
-
-            // Halfway through phase 2, start next track (muted)
-            const loadNextTrack = new Promise(async (resolve) => {
-                setTimeout(async () => {
-                    console.log('  🔄 Loading next track (muted)...');
-                    try {
-                        // play() now handles token refresh internally
-                        await spotifyPlayback.play(targetTrack.audioUrl);
-                        await spotifyPlayback.setVolume(0);
-                        console.log('  ✅ Next track loaded successfully (muted)');
-                    } catch (error) {
-                        console.error('❌ Failed to load next track:', error);
+                    if (!tokenExpiresAt || (now + fiveMinutes) >= tokenExpiresAt) {
+                        await spotifyAuthService.refreshAccessToken();
                     }
-                    resolve(undefined);
-                }, (phase2Duration * 1000) / 2);
-            });
 
-            await Promise.all([fadePhase2, loadNextTrack]);
+                    //Load next track
+                    await spotifyPlayback.play(targetTrack.audioUrl);
+                    await spotifyPlayback.setVolume(0);
 
-            // --- PHASE 3: HANDOFF (Bridge fades out, Next track fades in) ---
-            console.log('  Phase 3: Handoff (Bridge → 0%, Next → 100%)');
+                    // Fade next track in
+                    const fadeTime = crossfadeDuration * (1 - overlap);
+                    await this.logarithmicFade(0, usePlayerStore.getState().volume, fadeTime);
 
-            // Fade bridge out: 80% → 0%
-            const fadeBridgeOut = new Promise(resolve => {
-                setTimeout(() => {
-                    bridgeGenerator.setVolume(0);
-                    bridgeGenerator.stop();
-                    resolve(undefined);
-                }, phase3Duration * 1000);
-            });
+                    console.log('✅ Crossfade complete!');
+                } catch (error) {
+                    console.error('❌ Next track load failed:', error);
+                }
+            }, crossfadeDuration * overlap);
 
-            // Fade next track in: 0% → 100% (logarithmic)
-            const userVolume = usePlayerStore.getState().volume;
-            const fadeNextTrackIn = this.logarithmicFade(0, userVolume, phase3Duration * 1000);
-
-            await Promise.all([fadeBridgeOut, fadeNextTrackIn]);
-
-            console.log('✅ Transition complete!');
+            // Wait for current track fade to complete
+            await fadeCurrentOut;
 
         } catch (error) {
-            console.error('❌ Transition execution failed:', error);
-            // Fallback to simple crossfade
-            await this.simpleCrossfade(targetTrack);
+            console.error('❌ Crossfade failed:', error);
         } finally {
             this.isTransitioning = false;
             this.preparedPlan = null;
             this.preparedNextTrack = null;
+            this.preparationPromise = null;
         }
     }
 

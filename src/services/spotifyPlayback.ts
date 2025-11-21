@@ -110,8 +110,15 @@ class SpotifyPlaybackService {
                     // Detect Pre-Calculation (45s before end)
                     // Pre-calculate transition plan to enable smooth mixing
                     const { duration } = state;
-                    if (duration > 0 && duration - position < 45000 && !this.hasTriggeredPreparation) {
-                        console.log('🔮 Pre-calculating transition (45s left)...');
+                    const timeRemaining = duration - position;
+
+                    // Debug: Log timing info periodically
+                    if (duration > 0 && timeRemaining % 10000 < 1000) { // Every ~10s
+                        console.log(`⏱️  Time remaining: ${(timeRemaining / 1000).toFixed(1)}s / ${(duration / 1000).toFixed(1)}s (prep triggered: ${this.hasTriggeredPreparation})`);
+                    }
+
+                    if (duration > 0 && timeRemaining < 45000 && !this.hasTriggeredPreparation) {
+                        console.log(`🔮 Pre-calculating transition (${(timeRemaining / 1000).toFixed(1)}s left)...`);
                         this.hasTriggeredPreparation = true;
 
                         // Get next track from queue
