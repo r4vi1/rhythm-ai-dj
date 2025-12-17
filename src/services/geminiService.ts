@@ -7,11 +7,9 @@ let model: any = null;
 
 if (GEMINI_API_KEY) {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // Primary: gemini-2.5-flash (GA June 2025, most cost-effective)
-    // Fallback: gemini-2.0-flash-001 (GA Feb 2025, very stable)
-    // Try 2.5 first, fall back to 2.0 on 503 errors
+    // Using gemini-2.5-flash-preview-09-2025 as specified
     try {
-        model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-001" });
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" });
     } catch (e) {
         console.warn("Model initialization failed, using fallback");
         model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
