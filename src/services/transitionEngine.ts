@@ -167,6 +167,10 @@ class TransitionEngine {
     private logarithmicFade(from: number, to: number, durationMs: number): Promise<void> {
         return new Promise(resolve => {
             const startTime = Date.now();
+            let lastLogTime = 0;
+
+            console.log(`    🔊 Fade: ${from.toFixed(2)} → ${to.toFixed(2)} over ${durationMs}ms`);
+
             const animate = () => {
                 const elapsed = Date.now() - startTime;
                 const linearProgress = Math.min(elapsed / durationMs, 1);
@@ -184,11 +188,18 @@ class TransitionEngine {
                     volume = from + (to - from) * fadeIn;
                 }
 
+                // Log progress every 500ms
+                if (elapsed - lastLogTime > 500) {
+                    console.log(`    🔊 Volume: ${volume.toFixed(2)} (${(linearProgress * 100).toFixed(0)}%)`);
+                    lastLogTime = elapsed;
+                }
+
                 spotifyPlayback.setVolume(volume);
 
                 if (linearProgress < 1) {
                     requestAnimationFrame(animate);
                 } else {
+                    console.log(`    🔊 Fade complete: ${to.toFixed(2)}`);
                     resolve();
                 }
             };
