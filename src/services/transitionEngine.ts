@@ -114,18 +114,18 @@ class TransitionEngine {
         this.isTransitioning = true;
 
         try {
-            // Update UI to show next track (but DON'T trigger playback - we handle it below)
-            usePlayerStore.getState().setCurrentTrack(targetTrack, true);
-
             const fadeDuration = 3000; // 3 seconds out, 3 seconds in
             const userVolume = usePlayerStore.getState().volume;
 
-            // 1. Fade out current track
+            // 1. Fade out current track (UI still shows current track)
             console.log(`  📉 Fading out current track (${fadeDuration / 1000}s)...`);
             await this.logarithmicFade(userVolume, 0, fadeDuration);
 
             // 2. Switch track (at 0 volume)
             console.log('  🔄 Switching track...');
+
+            // Update UI NOW - right when we switch (not before fade out)
+            usePlayerStore.getState().setCurrentTrack(targetTrack, true);
 
             // Only refresh token if needed
             const now = Date.now();
