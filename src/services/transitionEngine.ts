@@ -167,16 +167,15 @@ class TransitionEngine {
     private logarithmicFade(from: number, to: number, durationMs: number): Promise<void> {
         return new Promise(resolve => {
             const startTime = Date.now();
-            let lastLogTime = 0;
+            const updateInterval = 100; // Update every 100ms (10 times per second)
 
             console.log(`    🔊 Fade: ${from.toFixed(2)} → ${to.toFixed(2)} over ${durationMs}ms`);
 
-            const animate = () => {
+            const interval = setInterval(async () => {
                 const elapsed = Date.now() - startTime;
                 const linearProgress = Math.min(elapsed / durationMs, 1);
 
                 // Apply logarithmic curve (equal-power crossfade)
-                // Using cosine/sine curves for smooth transitions
                 let volume: number;
                 if (from > to) {
                     // Fading out: use cosine curve
@@ -188,22 +187,20 @@ class TransitionEngine {
                     volume = from + (to - from) * fadeIn;
                 }
 
-                // Log progress every 500ms
-                if (elapsed - lastLogTime > 500) {
-                    console.log(`    🔊 Volume: ${volume.toFixed(2)} (${(linearProgress * 100).toFixed(0)}%)`);
-                    lastLogTime = elapsed;
+                console.log(`    🔊 Volume: ${volume.toFixed(2)} (${(linearProgress * 100).toFixed(0)}%)`);
+
+                try {
+                    await spotifyPlayback.setVolume(volume);
+                } catch (e) {
+                    console.error('Failed to set volume:', e);
                 }
 
-                spotifyPlayback.setVolume(volume);
-
-                if (linearProgress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
+                if (linearProgress >= 1) {
+                    clearInterval(interval);
                     console.log(`    🔊 Fade complete: ${to.toFixed(2)}`);
                     resolve();
                 }
-            };
-            requestAnimationFrame(animate);
+            }, updateInterval);
         });
     }
 

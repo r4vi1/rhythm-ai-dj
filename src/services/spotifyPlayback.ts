@@ -275,7 +275,13 @@ class SpotifyPlaybackService {
 
     async setVolume(volume: number) {
         if (this.player) {
-            await this.player.setVolume(volume);
+            try {
+                await this.player.setVolume(volume);
+            } catch (error) {
+                console.error('❌ setVolume failed:', error);
+            }
+        } else {
+            console.warn('⚠️ setVolume called but player is null');
         }
     }
 
