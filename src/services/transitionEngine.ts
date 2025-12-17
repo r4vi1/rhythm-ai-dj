@@ -117,14 +117,22 @@ class TransitionEngine {
             const fadeDuration = 3000; // 3 seconds out, 3 seconds in
             const userVolume = usePlayerStore.getState().volume;
 
-            // 1. Fade out current track (UI still shows current track)
+            // 1. Fade out current track
             console.log(`  📉 Fading out current track (${fadeDuration / 1000}s)...`);
             await this.logarithmicFade(userVolume, 0, fadeDuration);
 
-            // 2. Switch track (at 0 volume)
+            // 2. Pause current track and lock volume at 0
+            console.log('  ⏸️  Pausing current track...');
+            await spotifyPlayback.pause();
+            await spotifyPlayback.setVolume(0);
+
+            // Brief silence gap
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // 3. Switch track
             console.log('  🔄 Switching track...');
 
-            // Update UI NOW - right when we switch (not before fade out)
+            // Update UI
             usePlayerStore.getState().setCurrentTrack(targetTrack, true);
 
             // Only refresh token if needed
@@ -136,14 +144,15 @@ class TransitionEngine {
                 await spotifyAuthService.refreshAccessToken();
             }
 
-            // Load next track
+            // Start new track (volume is already at 0 from above)
             await spotifyPlayback.play(targetTrack.audioUrl);
-            await spotifyPlayback.setVolume(0); // Ensure it starts silent
 
-            // Small delay to ensure track is loaded/buffering
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Ensure volume is STILL at 0 after track loads
+            await new Promise(resolve => setTimeout(resolve, 200));
+            await spotifyPlayback.setVolume(0);
+            console.log('  🔈 Volume confirmed at 0 before fade in');
 
-            // 3. Fade in next track
+            // 4. Fade in next track
             console.log(`  📈 Fading in next track (${fadeDuration / 1000}s)...`);
             await this.logarithmicFade(0, userVolume, fadeDuration);
 
