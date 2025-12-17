@@ -114,8 +114,8 @@ class TransitionEngine {
         this.isTransitioning = true;
 
         try {
-            // Update UI to show next track
-            usePlayerStore.getState().setCurrentTrack(targetTrack);
+            // Update UI to show next track (but DON'T trigger playback - we handle it below)
+            usePlayerStore.getState().setCurrentTrack(targetTrack, true);
 
             const fadeDuration = 3000; // 3 seconds out, 3 seconds in
             const userVolume = usePlayerStore.getState().volume;

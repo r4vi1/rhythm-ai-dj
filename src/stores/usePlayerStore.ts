@@ -20,7 +20,7 @@ interface PlayerState {
     isMaximized: boolean;
 
     setIsPlaying: (isPlaying: boolean) => void;
-    setCurrentTrack: (track: Track) => void;
+    setCurrentTrack: (track: Track, skipPlayback?: boolean) => void;
     setVolume: (volume: number) => void;
     setProgress: (progress: number) => void;
     toggleShuffle: () => void;
@@ -56,11 +56,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         set({ isPlaying });
     },
 
-    setCurrentTrack: (track) => {
+    setCurrentTrack: (track, skipPlayback = false) => {
         set({ currentTrack: track, isPlaying: true, progress: 0 });
-        if (track.audioUrl) {
-            // If we are already playing, try to transition?
-            // For now, direct play for explicit clicks, transition for auto-next
+
+        // Only trigger playback if not skipped (e.g., during transitions, the transition handles playback)
+        if (!skipPlayback && track.audioUrl) {
             transitionEngine.play(track);
         }
 
