@@ -9,10 +9,10 @@ if (GEMINI_API_KEY) {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     // Using gemini-2.5-flash-preview-09-2025 as specified
     try {
-        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" });
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-09-2025" });
     } catch (e) {
         console.warn("Model initialization failed, using fallback");
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     }
 }
 
